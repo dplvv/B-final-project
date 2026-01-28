@@ -1,0 +1,49 @@
+{{define "content.manager_employee"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-gradient-to-br from-gray-800 to-gray-900 text-white p-6">
+    <a href="/manager" class="flex items-center gap-2 mb-4">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      <span>Назад</span>
+    </a>
+    <h1 class="text-2xl mb-1">{{.Employee.Name}}</h1>
+    <p class="text-gray-300 text-sm">{{.Employee.Department}}</p>
+  </div>
+
+  <div class="p-4 space-y-4">
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div>
+          <div class="text-xl">{{.WorkoutsCount}}</div>
+          <div class="text-xs text-gray-500">Тренировок</div>
+        </div>
+        <div>
+          <div class="text-xl">{{printf "%.1f" .HoursTotal}}</div>
+          <div class="text-xs text-gray-500">Часов</div>
+        </div>
+        <div>
+          <div class="text-xl">{{.Points}}</div>
+          <div class="text-xs text-gray-500">Баллов</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-3">Начислить баллы</h3>
+      <form method="POST" action="/manager/award" class="space-y-3">
+        <input type="hidden" name="employee_id" value="{{.Employee.ID}}" />
+        <div>
+          <label class="text-xs text-gray-500" for="points">Баллы</label>
+          <input id="points" name="points" type="number" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500" for="reason">Причина</label>
+          <input id="reason" name="reason" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200" />
+        </div>
+        <button class="w-full bg-gray-900 text-white py-3 rounded-xl">Начислить</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

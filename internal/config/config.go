@@ -1,0 +1,67 @@
+package config
+
+import (
+  "os"
+  "strconv"
+  "time"
+)
+
+type Config struct {
+  Addr             string
+  DatabaseURL      string
+  SessionTTL       time.Duration
+  APITokenTTL      time.Duration
+  CookieName       string
+  CookieSecure     bool
+  Environment      string
+  RunMigrations    bool
+  SeedData         bool
+  AllowSelfRegister bool
+}
+
+func Load() Config {
+  return Config{
+    Addr:             getEnv("APP_ADDR", ":8080"),
+    DatabaseURL:      getEnv("DATABASE_URL", ""),
+    SessionTTL:       getDuration("SESSION_TTL", 24*time.Hour*7),
+    APITokenTTL:      getDuration("API_TOKEN_TTL", 24*time.Hour*30),
+    CookieName:       getEnv("COOKIE_NAME", "rehab_session"),
+    CookieSecure:     getEnvBool("COOKIE_SECURE", false),
+    Environment:      getEnv("APP_ENV", "development"),
+    RunMigrations:    getEnvBool("RUN_MIGRATIONS", true),
+    SeedData:         getEnvBool("SEED_DATA", true),
+    AllowSelfRegister: getEnvBool("ALLOW_SELF_REGISTER", true),
+  }
+}
+
+func getEnv(key, fallback string) string {
+  value := os.Getenv(key)
+  if value == "" {
+    return fallback
+  }
+  return value
+}
+
+func getEnvBool(key string, fallback bool) bool {
+  value := os.Getenv(key)
+  if value == "" {
+    return fallback
+  }
+  parsed, err := strconv.ParseBool(value)
+  if err != nil {
+    return fallback
+  }
+  return parsed
+}
+
+func getDuration(key string, fallback time.Duration) time.Duration {
+  value := os.Getenv(key)
+  if value == "" {
+    return fallback
+  }
+  parsed, err := time.ParseDuration(value)
+  if err != nil {
+    return fallback
+  }
+  return parsed
+}

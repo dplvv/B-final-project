@@ -1,0 +1,130 @@
+{{define "content.calendar"}}
+<div class="min-h-screen bg-gray-50 pb-20">
+  <div class="bg-blue-600 text-white p-6 rounded-b-3xl">
+    <h1 class="mb-4">Календарь</h1>
+    <div class="grid grid-cols-3 gap-2">
+      <div class="bg-white/20 backdrop-blur rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">{{.TotalWorkouts}}</div>
+        <div class="text-xs text-white/80">Тренировок</div>
+      </div>
+      <div class="bg-white/20 backdrop-blur rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">{{.CurrentStreak}}</div>
+        <div class="text-xs text-white/80">Дней подряд</div>
+      </div>
+      <div class="bg-white/20 backdrop-blur rounded-xl p-3 text-center">
+        <div class="text-2xl mb-1">{{.TotalHours}}</div>
+        <div class="text-xs text-white/80">Часов</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-4 space-y-4">
+    <div class="bg-white rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <a href="/calendar?month={{.PrevMonth}}" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </a>
+        <h3 class="capitalize">{{.MonthLabel}}</h3>
+        <a href="/calendar?month={{.NextMonth}}" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-7 gap-2 mb-2">
+        {{range $day := list "Вс" "Пн" "Вт" "Ср" "Чт" "Пт" "Сб"}}
+        <div class="text-center text-xs text-gray-600 py-2">{{$day}}</div>
+        {{end}}
+      </div>
+
+      <div class="grid grid-cols-7 gap-2">
+        {{range seq .StartingDay}}
+        <div class="aspect-square"></div>
+        {{end}}
+        {{range .Days}}
+        <a href="/calendar?month={{$.MonthParam}}&date={{.Date}}" class="aspect-square rounded-xl flex flex-col items-center justify-center text-sm transition-all {{if .IsSelected}}bg-blue-600 text-white scale-95{{else if .IsWorkout}}bg-green-100 text-green-700 hover:bg-green-200{{else if .IsToday}}bg-blue-50 text-blue-600 border-2 border-blue-600{{else}}hover:bg-gray-100{{end}}">
+          <span>{{.Day}}</span>
+          {{if .IsWorkout}}
+          <div class="w-1 h-1 rounded-full mt-1 {{if .IsSelected}}bg-white{{else}}bg-green-600{{end}}"></div>
+          {{end}}
+        </a>
+        {{end}}
+      </div>
+    </div>
+
+    {{if .SelectedDate}}
+    <div class="bg-white rounded-2xl p-4 shadow-sm">
+      <h3 class="mb-3">{{if .SelectedLabel}}{{.SelectedLabel}}{{else}}{{.SelectedDate}}{{end}}</h3>
+      {{if .SelectedWorkouts}}
+      <div class="space-y-3">
+        {{range .SelectedWorkouts}}
+        <div class="p-4 rounded-xl {{if .Completed}}bg-green-50 border border-green-200{{else}}bg-gray-50 border border-gray-200{{end}}">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <h4 class="mb-1">{{.Name}}</h4>
+              <div class="flex items-center gap-3 text-sm text-gray-600">
+                <div class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{.Duration}} мин
+                </div>
+                <div class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                  </svg>
+                  {{.Exercises}} упр.
+                </div>
+                {{if gt .Calories 0}}
+                <div class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                  </svg>
+                  {{.Calories}} ккал
+                </div>
+                {{end}}
+              </div>
+            </div>
+            {{if .Completed}}
+            <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {{else}}
+            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="text-center py-8">
+        <div class="text-4xl mb-2">📅</div>
+        <p class="text-gray-600 text-sm">Нет тренировок в этот день</p>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+
+    <div class="bg-white rounded-2xl p-4 shadow-sm">
+      <h3 class="mb-3">Последние тренировки</h3>
+      <div class="space-y-2">
+        {{range .RecentWorkouts}}
+        <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+          <div class="w-2 h-2 rounded-full flex-shrink-0 {{if .Completed}}bg-green-600{{else}}bg-gray-300{{end}}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm truncate">{{.Name}}</div>
+            <div class="text-xs text-gray-600">{{.Date}}</div>
+          </div>
+          <div class="text-sm text-gray-600">{{.Duration}} мин</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,228 @@
+{{define "content.profile"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-gradient-to-br from-blue-600 to-purple-600 text-white p-6">
+    <div class="text-center">
+      <div class="bg-white/20 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl mb-1">{{.User.Name}}</h2>
+      <p class="text-blue-100 text-sm">{{.User.Department}}</p>
+      <div class="mt-4 inline-block bg-white/20 px-4 py-1.5 rounded-full text-sm">{{.Age}} лет</div>
+    </div>
+  </div>
+
+  <div class="p-6 space-y-6">
+    <div class="grid grid-cols-3 gap-3">
+      <div class="bg-white rounded-xl p-4 text-center shadow-sm">
+        <div class="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div class="text-xl mb-1">{{.WorkoutsCount}}</div>
+        <div class="text-xs text-gray-600">Тренировок</div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 text-center shadow-sm">
+        <div class="bg-green-100 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </div>
+        <div class="text-xl mb-1">{{.AchievementsCount}}</div>
+        <div class="text-xs text-gray-600">Достижения</div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 text-center shadow-sm">
+        <div class="bg-purple-100 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2">
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div class="text-xl mb-1">{{.Streak}}</div>
+        <div class="text-xs text-gray-600">Дней подряд</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-3">Редактировать профиль</h3>
+      <form method="POST" action="/profile" class="space-y-3">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1" for="name">Имя</label>
+          <input id="name" name="name" class="w-full px-3 py-2 rounded-lg border border-gray-200" value="{{.User.Name}}" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1" for="department">Отдел</label>
+          <input id="department" name="department" class="w-full px-3 py-2 rounded-lg border border-gray-200" value="{{.User.Department}}" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1" for="position">Должность</label>
+          <input id="position" name="position" class="w-full px-3 py-2 rounded-lg border border-gray-200" value="{{.User.Position}}" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1" for="age">Возраст</label>
+          <input id="age" name="age" type="number" class="w-full px-3 py-2 rounded-lg border border-gray-200" value="{{.Age}}" />
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl">Сохранить</button>
+      </form>
+    </div>
+
+    {{if .Restrictions}}
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <h3 class="text-amber-900 mb-3">Учитываемые ограничения</h3>
+      <div class="flex flex-wrap gap-2">
+        {{range .Restrictions}}
+        <div class="bg-white px-3 py-1.5 rounded-lg text-sm text-amber-800 border border-amber-200">{{.}}</div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
+    {{if .Goals}}
+    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+      <h3 class="text-blue-900 mb-3">Ваши цели</h3>
+      <div class="space-y-2">
+        {{range .Goals}}
+        <div class="bg-white px-4 py-3 rounded-xl text-sm text-blue-800 flex items-center gap-2">
+          <div class="w-2 h-2 bg-blue-600 rounded-full"></div>
+          {{.}}
+        </div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-5 py-3 border-b bg-gray-50">
+        <h3 class="text-sm text-gray-600">Навигация</h3>
+      </div>
+      <div class="divide-y">
+        <a href="/medical-info" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Медицинская информация</div>
+            <div class="text-xs text-gray-500">Просмотреть</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/goals" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Цели</div>
+            <div class="text-xs text-gray-500">{{len .Goals}} активных</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/notifications" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Уведомления</div>
+            <div class="text-xs text-gray-500">Включены</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/settings" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Настройки приложения</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/support" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Помощь и поддержка</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/history" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">История тренировок</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/community" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Сообщество</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a href="/motivation" class="w-full px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+          <div class="bg-gray-100 p-2 rounded-lg">
+            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          </div>
+          <div class="flex-1 text-left">
+            <div class="text-sm mb-0.5">Мотивация и награды</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <div class="text-center text-sm text-gray-600">
+        <div class="mb-2">ГК РОСАТОМ</div>
+        <div class="mb-1">Система спортивной реабилитации</div>
+        <div class="text-xs text-gray-400">Версия 1.0.0</div>
+      </div>
+    </div>
+
+    <a href="/logout" class="w-full bg-white border-2 border-red-200 text-red-600 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-red-50 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+      </svg>
+      Выйти из аккаунта
+    </a>
+  </div>
+</div>
+{{end}}

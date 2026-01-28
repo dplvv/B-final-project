@@ -1,0 +1,120 @@
+{{define "content.program"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-blue-600 text-white p-6">
+    <h1 class="text-2xl mb-2">Программа тренировок</h1>
+    <p class="text-blue-100 text-sm">Персональная программа реабилитации</p>
+  </div>
+
+  <div class="bg-white border-b p-6">
+    <div class="flex items-center gap-4 mb-4">
+      <div class="bg-blue-100 p-3 rounded-xl">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div>
+        <div class="text-sm text-gray-600">Уровень подготовки</div>
+        <div class="capitalize">
+          {{if eq .FitnessLevel "beginner"}}Начальный{{else if eq .FitnessLevel "intermediate"}}Средний{{else if eq .FitnessLevel "advanced"}}Продвинутый{{else}}Не определен{{end}}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-green-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 text-green-700 mb-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="text-sm">Выполнено</span>
+        </div>
+        <div class="text-2xl text-green-900">{{.CompletedCount}}</div>
+      </div>
+
+      <div class="bg-purple-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 text-purple-700 mb-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="text-sm">Общее время</span>
+        </div>
+        <div class="text-2xl text-purple-900">{{.TotalDuration}} мин</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg">Недельный план</h2>
+      <div class="flex items-center gap-2 text-sm text-gray-600">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span>Неделя 1</span>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      {{range $index, $workout := .Workouts}}
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div class="p-5">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 {{if $workout.Completed}}bg-green-100 text-green-600{{else}}bg-blue-100 text-blue-600{{end}}">
+              {{if $workout.Completed}}
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              {{else}}
+                <span class="text-lg">{{add $index 1}}</span>
+              {{end}}
+            </div>
+
+            <div class="flex-1">
+              <h3 class="mb-2">{{$workout.Name}}</h3>
+              <div class="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                <div class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{{$workout.Duration}} мин</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>{{$workout.Difficulty}}</span>
+                </div>
+              </div>
+
+              <div class="text-sm text-gray-600 mb-3">{{$workout.ExercisesCount}} упражнений</div>
+
+              <a href="/workouts/start?id={{$workout.ID}}" class="px-5 py-2.5 rounded-lg inline-flex items-center gap-2 transition-colors {{if $workout.Completed}}bg-gray-100 text-gray-700 hover:bg-gray-200{{else}}bg-blue-600 text-white hover:bg-blue-700{{end}}">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>{{if $workout.Completed}}Повторить{{else}}Начать{{end}}</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {{if not $workout.Completed}}
+        <div class="bg-blue-50 px-5 py-3 text-sm text-blue-700">
+          Рекомендуемая дата: {{$workout.RecommendedDate}}
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+
+    <div class="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <h3 class="text-amber-900 mb-2">Рекомендации специалиста</h3>
+      <ul class="space-y-2 text-sm text-amber-800">
+        <li class="flex gap-2"><span class="text-amber-600">•</span>Выполняйте упражнения медленно и контролируемо</li>
+        <li class="flex gap-2"><span class="text-amber-600">•</span>При появлении боли немедленно прекратите выполнение</li>
+        <li class="flex gap-2"><span class="text-amber-600">•</span>Соблюдайте рекомендованное время отдыха между подходами</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{{end}}

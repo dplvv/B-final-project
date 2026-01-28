@@ -1,0 +1,42 @@
+{{define "content.achievements"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-gradient-to-br from-yellow-500 to-orange-500 text-white p-6">
+    <div class="flex items-center gap-4 mb-2">
+      <a href="/" class="p-2 -ml-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      <h1>Достижения</h1>
+    </div>
+    <p class="text-yellow-100 text-sm">Отслеживайте свои награды</p>
+  </div>
+
+  <div class="p-4 space-y-4">
+    {{range .Achievements}}
+    <div class="bg-white rounded-2xl p-4 shadow-sm">
+      <div class="flex items-start gap-4">
+        <div class="text-3xl {{if not .Unlocked}}grayscale opacity-50{{end}}">
+          {{if eq .Icon "spark"}}🎯{{else if eq .Icon "flame"}}🔥{{else if eq .Icon "shield"}}⭐{{else}}🏅{{end}}
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            <h3 class="{{if .Unlocked}}text-gray-900{{else}}text-gray-500{{end}}">{{.Title}}</h3>
+            {{if .Unlocked}}
+            <span class="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Получено</span>
+            {{end}}
+          </div>
+          <p class="text-sm text-gray-600 mb-2">{{.Description}}</p>
+          {{if gt .Total 0}}
+          <div class="text-xs text-gray-500">Прогресс: {{.Progress}} / {{.Total}}</div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden mt-2">
+            <div class="h-full bg-green-500" style="width: {{percent .Progress .Total}}%;"></div>
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

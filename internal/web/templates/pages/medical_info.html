@@ -1,0 +1,56 @@
+{{define "content.medical_info"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-6">
+    <div class="flex items-center gap-4 mb-2">
+      <a href="/profile" class="p-2 -ml-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      <h1>Медицинская информация</h1>
+    </div>
+    <p class="text-blue-100 text-sm">Укажите ограничения и рекомендации</p>
+  </div>
+
+  <div class="p-4 space-y-4">
+    <form method="POST" action="/medical-info" class="bg-white rounded-2xl p-5 shadow-sm space-y-4">
+      <div>
+        <label class="text-xs text-gray-500" for="chronic">Хронические заболевания</label>
+        <textarea id="chronic" name="chronic" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200">{{range .Chronic}}{{.}}
+{{end}}</textarea>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500" for="injuries">Травмы</label>
+        <textarea id="injuries" name="injuries" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200">{{range .Injuries}}{{.}}
+{{end}}</textarea>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500" for="medications">Лекарства</label>
+        <textarea id="medications" name="medications" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200">{{range .Medications}}{{.}}
+{{end}}</textarea>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500" for="allergies">Аллергии</label>
+        <textarea id="allergies" name="allergies" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200">{{range .Allergies}}{{.}}
+{{end}}</textarea>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500" for="restrictions">Ограничения</label>
+        <textarea id="restrictions" name="restrictions" rows="3" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200">{{range .Restrictions}}{{.}}
+{{end}}</textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-gray-500" for="last_checkup">Последний осмотр</label>
+          <input id="last_checkup" name="last_checkup" type="date" class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200" value="{{.LastCheckup}}" />
+        </div>
+        <div class="flex items-center gap-2 mt-5">
+          <input id="doctor_approval" type="checkbox" name="doctor_approval" class="h-5 w-5" {{if .DoctorApproval}}checked{{end}} />
+          <label class="text-sm" for="doctor_approval">Есть допуск врача</label>
+        </div>
+      </div>
+      <button class="w-full bg-blue-600 text-white py-3 rounded-xl">Сохранить</button>
+    </form>
+  </div>
+</div>
+{{end}}

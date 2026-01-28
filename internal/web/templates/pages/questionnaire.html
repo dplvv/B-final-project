@@ -1,0 +1,83 @@
+{{define "content.questionnaire"}}
+<div class="min-h-screen bg-white">
+  <div class="bg-blue-600 text-white p-6">
+    <div class="flex items-center gap-4 mb-4">
+      {{if .CanBack}}
+      <a href="/questionnaire?step={{add .Step -1}}" class="p-2 -ml-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      {{end}}
+      <div class="flex-1">
+        <h1 class="text-xl">Оценка состояния</h1>
+        <p class="text-sm text-blue-100">Вопрос {{add .Step 1}} из {{.TotalSteps}}</p>
+      </div>
+    </div>
+    <div class="bg-blue-500 rounded-full h-2 overflow-hidden">
+      <div class="bg-white h-full transition-all" style="width: {{.Progress}}%;"></div>
+    </div>
+  </div>
+
+  <div class="p-6">
+    <h2 class="text-xl mb-6">{{.Question.Text}}</h2>
+    <form method="POST" action="/questionnaire" class="space-y-3">
+      <input type="hidden" name="step" value="{{.Step}}" />
+      {{range .Question.Options}}
+        <label class="option-item">
+          {{if eq $.Question.Type "single"}}
+            <input type="radio" name="answer" value="{{.Value}}" class="option-input" {{if .Selected}}checked{{end}} />
+          {{else}}
+            <input type="checkbox" name="answer" value="{{.Value}}" class="option-input" {{if .Selected}}checked{{end}} />
+          {{end}}
+          <div class="option-content">
+            <div class="option-indicator">
+              <svg class="option-check" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span class="option-label">{{.Label}}</span>
+          </div>
+        </label>
+      {{end}}
+
+      <div class="fixed bottom-0 left-0 right-0 p-6 bg-white border-t max-w-md mx-auto">
+        <button id="questionnaire-submit" type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl flex items-center justify-center gap-2 {{if not .Answered}}opacity-60 cursor-not-allowed{{end}}" {{if not .Answered}}disabled{{end}}>
+          {{if lt .Step (sub .TotalSteps 1)}}
+            Далее
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          {{else}}
+            Завершить
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+          {{end}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  (function () {
+    const form = document.querySelector('form');
+    const button = document.getElementById('questionnaire-submit');
+    if (!form || !button) return;
+
+    const updateState = () => {
+      const checked = form.querySelector('input[name="answer"]:checked');
+      if (checked) {
+        button.disabled = false;
+        button.classList.remove('opacity-60', 'cursor-not-allowed');
+      } else {
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-not-allowed');
+      }
+    };
+
+    form.addEventListener('change', updateState);
+    updateState();
+  })();
+</script>
+{{end}}

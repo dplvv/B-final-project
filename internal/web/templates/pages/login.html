@@ -1,0 +1,46 @@
+{{define "content.login"}}
+<div class="min-h-screen bg-gradient-to-b from-blue-600 to-blue-800 flex items-center justify-center p-6">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8">
+      <div class="bg-white w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <h1 class="text-white text-3xl mb-2">Спорт РОСАТОМ</h1>
+      <p class="text-blue-200">Система спортивной реабилитации</p>
+    </div>
+
+    <div class="bg-white rounded-3xl p-6 shadow-xl">
+      <form method="POST" action="/login" class="space-y-4">
+        <div>
+          <label class="block text-gray-700 mb-2" for="name">Полное имя</label>
+          <input id="name" name="name" type="text" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Иван Петров" />
+        </div>
+        <div>
+          <label class="block text-gray-700 mb-2" for="employee_id">Табельный номер</label>
+          <input id="employee_id" name="employee_id" type="text" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456" required />
+        </div>
+        <div>
+          <label class="block text-gray-700 mb-2" for="password">Пароль</label>
+          <input id="password" name="password" type="password" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" required />
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition-colors">Войти</button>
+      </form>
+
+      <div class="mt-6 space-y-3">
+        <button class="w-full text-blue-600 text-sm hover:underline" type="button">Забыли пароль?</button>
+        <div class="text-center text-gray-500 text-sm">
+          Нет аккаунта?
+          <a class="text-blue-600 hover:underline" href="/register">Зарегистрироваться</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center text-blue-100 text-sm">
+      <p>Приложение предназначено для сотрудников ГК РОСАТОМ</p>
+      <p class="mt-2">Версия 1.0.0</p>
+    </div>
+  </div>
+</div>
+{{end}}

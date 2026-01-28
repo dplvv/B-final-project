@@ -1,0 +1,92 @@
+{{define "content.statistics"}}
+<div class="min-h-screen bg-gray-50">
+  <div class="bg-blue-600 text-white p-6">
+    <a href="/progress" class="flex items-center gap-2 mb-4">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      <span>Назад</span>
+    </a>
+    <h1 class="text-2xl mb-2">Статистика</h1>
+    <p class="text-blue-100">Детальный анализ вашего прогресса</p>
+  </div>
+
+  <div class="p-6 space-y-6">
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-5 shadow-lg">
+        <div class="text-3xl mb-1">{{.TotalWorkouts}}</div>
+        <div class="text-sm text-blue-100">Всего тренировок</div>
+      </div>
+      <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl p-5 shadow-lg">
+        <div class="text-3xl mb-1">{{printf "%.1f" .TotalHours}}</div>
+        <div class="text-sm text-green-100">Часов активности</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-4">Активность за неделю</h3>
+      <div class="space-y-3">
+        {{range $index, $item := .WeeklyData}}
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span class="text-gray-600">{{$item.Day}}</span>
+            <span>{{$item.Duration}} мин</span>
+          </div>
+          <div class="h-8 bg-gray-100 rounded-lg overflow-hidden">
+            <div class="h-full bg-blue-500 rounded-lg" style="width: {{percent $item.Duration $.MaxWeekly}}%;"></div>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-4">Динамика по месяцам</h3>
+      <div class="relative h-48">
+        <div class="absolute inset-0 flex flex-col justify-between">
+          {{range seq 5}}
+          <div class="border-t border-gray-100"></div>
+          {{end}}
+        </div>
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 300 100" preserveAspectRatio="none">
+          <polyline points="{{.MonthlyPoints}}" fill="none" stroke="#3b82f6" stroke-width="2" vector-effect="non-scaling-stroke" />
+        </svg>
+        <div class="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500">
+          {{range .MonthlyData}}
+          <span>{{.Month}}</span>
+          {{end}}
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-4">Распределение по категориям</h3>
+      <div class="space-y-4">
+        {{range .CategoryData}}
+        <div>
+          <div class="flex justify-between text-sm mb-2">
+            <span>{{.Category}}</span>
+            <span>{{.Percentage}}%</span>
+          </div>
+          <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full {{.ColorClass}} rounded-full" style="width: {{.Percentage}}%;"></div>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h3 class="mb-4">Личные рекорды</h3>
+      <div class="space-y-3">
+        {{range .Records}}
+        <div class="flex items-center justify-between p-3 {{.BgClass}} rounded-xl">
+          <div>{{.Title}}</div>
+          <div class="text-sm text-gray-600">{{.Value}}</div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
