@@ -1,46 +1,55 @@
-{{define "content.login"}}
-<div class="min-h-screen bg-gradient-to-b from-blue-600 to-blue-800 flex items-center justify-center p-6">
-  <div class="w-full max-w-md">
-    <div class="text-center mb-8">
-      <div class="bg-white w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-        <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
+{{ define "content" }}
+<div class="auth-layout">
+  <div class="auth-shell">
+    <div class="auth-panel">
+      <div class="auth-panel-content">
+        <div class="panel-badge">ГК «РОСАТОМ»</div>
+        <h2>Система реабилитации сотрудников</h2>
+        <p>Персональный план тренировок с безопасной адаптацией на основе анкеты и ограничений.</p>
+        <ul class="panel-list">
+          <li>Автоматический подбор программы</li>
+          <li>Контроль самочувствия и стоп-условия</li>
+          <li>История изменений и прозрачные причины</li>
+          <li>Достижения и рейтинг сотрудников</li>
+        </ul>
+        <div class="panel-demo">
+          <div class="panel-demo-title">Демо-доступ</div>
+          <div class="panel-demo-row"><strong>Табельный:</strong> 10001</div>
+          <div class="panel-demo-row"><strong>Пароль:</strong> password</div>
+        </div>
       </div>
-      <h1 class="text-white text-3xl mb-2">Спорт РОСАТОМ</h1>
-      <p class="text-blue-200">Система спортивной реабилитации</p>
     </div>
 
-    <div class="bg-white rounded-3xl p-6 shadow-xl">
-      <form method="POST" action="/login" class="space-y-4">
-        <div>
-          <label class="block text-gray-700 mb-2" for="name">Полное имя</label>
-          <input id="name" name="name" type="text" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Иван Петров" />
+    <div class="auth-card">
+      <div>
+        <h1>Добро пожаловать</h1>
+        <p>Войдите, чтобы продолжить программу реабилитации.</p>
+      </div>
+
+      {{ if .Error }}
+        <div class="notice error">{{ .Error }}</div>
+      {{ end }}
+
+      <form class="form" method="post" action="/login">
+        <div class="form-group">
+          <label for="employee_id">Табельный номер</label>
+          <input id="employee_id" name="employee_id" placeholder="10001" required />
         </div>
-        <div>
-          <label class="block text-gray-700 mb-2" for="employee_id">Табельный номер</label>
-          <input id="employee_id" name="employee_id" type="text" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456" required />
+        <div class="form-group">
+          <label for="password">Пароль</label>
+          <input id="password" name="password" type="password" placeholder="••••••••" required />
         </div>
-        <div>
-          <label class="block text-gray-700 mb-2" for="password">Пароль</label>
-          <input id="password" name="password" type="password" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" required />
-        </div>
-        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition-colors">Войти</button>
+        <button class="button primary" type="submit">Войти</button>
       </form>
 
-      <div class="mt-6 space-y-3">
-        <button class="w-full text-blue-600 text-sm hover:underline" type="button">Забыли пароль?</button>
-        <div class="text-center text-gray-500 text-sm">
-          Нет аккаунта?
-          <a class="text-blue-600 hover:underline" href="/register">Зарегистрироваться</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-6 text-center text-blue-100 text-sm">
-      <p>Приложение предназначено для сотрудников ГК РОСАТОМ</p>
-      <p class="mt-2">Версия 1.0.0</p>
+      {{ if .AllowRegister }}
+        <div class="notice">Нет аккаунта? <a class="button link" href="/register">Создать профиль</a></div>
+      {{ end }}
     </div>
   </div>
 </div>
-{{end}}
+{{ end }}
+
+{{ define "login" }}
+  {{ template "base" . }}
+{{ end }}

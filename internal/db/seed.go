@@ -124,12 +124,18 @@ func seedExercises(db *sql.DB) error {
     Equipment   []string
     VideoURL    string
   }{
-    {"Планка", "Укрепляет мышцы кора и спины.", "Кор", "Средняя", 3, "30-45 сек", 45, []string{"Пресс", "Спина"}, []string{"Коврик"}, ""},
-    {"Супермен", "Лежа на животе, поднимайте руки и ноги.", "Спина", "Легкая", 3, "12-15", 30, []string{"Спина"}, []string{"Коврик"}, ""},
-    {"Ягодичный мост", "Поднимайте таз, удерживая пресс.", "Ноги", "Легкая", 3, "12-15", 30, []string{"Ягодицы"}, []string{"Коврик"}, ""},
-    {"Разведение рук с эспандером", "Контролируемое разведение рук.", "Плечи", "Средняя", 3, "12-15", 30, []string{"Плечи"}, []string{"Эспандер"}, ""},
-    {"Приседания к стулу", "Приседайте до касания стула.", "Ноги", "Легкая", 3, "10-12", 45, []string{"Ноги"}, []string{"Стул"}, ""},
-    {"Растяжка груди", "Растяните грудные мышцы у стены.", "Растяжка", "Легкая", 2, "20-30 сек", 20, []string{"Грудь"}, []string{"Стена"}, ""},
+    {"Планка", "Укрепляет мышцы кора и спины.", "Кор", "Средняя", 3, "30-45 сек", 45, []string{"Пресс", "Спина"}, []string{"Коврик"}, "https://www.youtube.com/embed/pSHjTRCQxIw"},
+    {"Супермен", "Лежа на животе, поднимайте руки и ноги.", "Спина", "Легкая", 3, "12-15", 30, []string{"Спина"}, []string{"Коврик"}, "https://www.youtube.com/embed/cc6UVRS7PW4"},
+    {"Ягодичный мост", "Поднимайте таз, удерживая пресс.", "Ноги", "Легкая", 3, "12-15", 30, []string{"Ягодицы"}, []string{"Коврик"}, "https://www.youtube.com/embed/m2Zx-57cSok"},
+    {"Разведение рук с эспандером", "Контролируемое разведение рук.", "Плечи", "Средняя", 3, "12-15", 30, []string{"Плечи"}, []string{"Эспандер"}, "https://www.youtube.com/embed/3Vv2t0z3tQY"},
+    {"Приседания к стулу", "Приседайте до касания стула.", "Ноги", "Легкая", 3, "10-12", 45, []string{"Ноги"}, []string{"Стул"}, "https://www.youtube.com/embed/YaXPRqUwItQ"},
+    {"Растяжка груди", "Растяните грудные мышцы у стены.", "Растяжка", "Легкая", 2, "20-30 сек", 20, []string{"Грудь"}, []string{"Стена"}, "https://www.youtube.com/embed/tJt4hQ9x30E"},
+    {"Кошка-корова", "Мобилизация позвоночника в спокойном темпе.", "Мобилизация", "Легкая", 2, "8-10", 20, []string{"Спина"}, []string{"Коврик"}, "https://www.youtube.com/embed/kqnua4rHVVA"},
+    {"Повороты корпуса сидя", "Мягкое вращение грудного отдела.", "Мобилизация", "Легкая", 2, "10-12", 20, []string{"Спина", "Кор"}, []string{"Стул"}, "https://www.youtube.com/embed/0BhfKxK1uK8"},
+    {"Ходьба на месте", "Легкий разогрев, поддерживает пульс.", "Кардио", "Легкая", 2, "60 сек", 30, []string{"Ноги"}, []string{}, "https://www.youtube.com/embed/0f0kQqLZcW4"},
+    {"Выпады назад", "Укрепление ног и баланса.", "Ноги", "Средняя", 3, "10-12", 45, []string{"Ноги"}, []string{}, "https://www.youtube.com/embed/3D2WQF6kQDc"},
+    {"Растяжка задней поверхности бедра", "Мягкая растяжка сидя.", "Растяжка", "Легкая", 2, "20-30 сек", 20, []string{"Ноги"}, []string{"Коврик"}, "https://www.youtube.com/embed/2ZlK7VqkX1Y"},
+    {"Подъемы на носки", "Укрепление голеней.", "Ноги", "Легкая", 3, "12-15", 30, []string{"Ноги"}, []string{}, "https://www.youtube.com/embed/-M4-G8p8fmc"},
   }
 
   for _, ex := range exercises {
@@ -167,6 +173,11 @@ func seedWorkouts(db *sql.DB) error {
     {"Базовая реабилитация", "Укрепление мышц спины и коррекция осанки", 30, "Средняя", "Реабилитация"},
     {"Мягкая мобилизация", "Легкая разминка для суставов", 20, "Легкая", "Мобилизация"},
     {"Стабилизация корпуса", "Тренировка мышц кора", 25, "Средняя", "Кор"},
+    {"Офисная разминка", "Снятие напряжения после рабочего дня", 15, "Легкая", "Мобилизация"},
+    {"Разгрузка спины", "Упражнения для спины и осанки", 25, "Легкая", "Спина"},
+    {"Легкое кардио", "Мягкая кардио-нагрузка и разогрев", 20, "Легкая", "Кардио"},
+    {"Нижняя часть тела", "Укрепление ног и баланса", 30, "Средняя", "Ноги"},
+    {"Гибкость и растяжка", "Расслабление и гибкость всего тела", 25, "Легкая", "Растяжка"},
   }
 
   for _, w := range workouts {
@@ -234,6 +245,19 @@ func seedWorkoutExercises(db *sql.DB) error {
     {workout: "Стабилизация корпуса", exercise: "Планка", order: 1},
     {workout: "Стабилизация корпуса", exercise: "Разведение рук с эспандером", order: 2},
     {workout: "Стабилизация корпуса", exercise: "Супермен", order: 3},
+    {workout: "Офисная разминка", exercise: "Кошка-корова", order: 1},
+    {workout: "Офисная разминка", exercise: "Повороты корпуса сидя", order: 2},
+    {workout: "Офисная разминка", exercise: "Растяжка груди", order: 3},
+    {workout: "Разгрузка спины", exercise: "Супермен", order: 1},
+    {workout: "Разгрузка спины", exercise: "Кошка-корова", order: 2},
+    {workout: "Разгрузка спины", exercise: "Планка", order: 3},
+    {workout: "Легкое кардио", exercise: "Ходьба на месте", order: 1},
+    {workout: "Легкое кардио", exercise: "Подъемы на носки", order: 2},
+    {workout: "Нижняя часть тела", exercise: "Приседания к стулу", order: 1},
+    {workout: "Нижняя часть тела", exercise: "Выпады назад", order: 2},
+    {workout: "Нижняя часть тела", exercise: "Ягодичный мост", order: 3},
+    {workout: "Гибкость и растяжка", exercise: "Растяжка груди", order: 1},
+    {workout: "Гибкость и растяжка", exercise: "Растяжка задней поверхности бедра", order: 2},
   }
 
   for _, item := range items {
@@ -256,41 +280,79 @@ func seedWorkoutExercises(db *sql.DB) error {
 }
 
 func seedPrograms(db *sql.DB) error {
-  var programID string
-  err := db.QueryRow("select id from programs where name = $1", "Персональная программа").Scan(&programID)
-  if err == nil {
-    return nil
-  }
-  if !errors.Is(err, sql.ErrNoRows) {
-    return err
+  programs := []struct {
+    Name        string
+    Description string
+    Workouts    []string
+  }{
+    {
+      Name:        "Персональная программа",
+      Description: "План на 4 недели с постепенным увеличением нагрузки",
+      Workouts:    []string{"Базовая реабилитация", "Стабилизация корпуса", "Разгрузка спины"},
+    },
+    {
+      Name:        "Офисная мобилизация",
+      Description: "Короткие тренировки для восстановления после работы",
+      Workouts:    []string{"Офисная разминка", "Мягкая мобилизация", "Гибкость и растяжка"},
+    },
+    {
+      Name:        "Легкое кардио",
+      Description: "Мягкая кардио-нагрузка без перегрузки суставов",
+      Workouts:    []string{"Легкое кардио", "Офисная разминка", "Гибкость и растяжка"},
+    },
   }
 
-  err = db.QueryRow(
-    `insert into programs (name, description) values ($1, $2) returning id`,
-    "Персональная программа",
-    "План на 4 недели с постепенным увеличением нагрузки",
-  ).Scan(&programID)
-  if err != nil {
-    return fmt.Errorf("insert program: %w", err)
-  }
-
-  rows, err := db.Query("select id from workouts order by created_at")
+  workoutIDs := map[string]string{}
+  rows, err := db.Query(`select id, name from workouts`)
   if err != nil {
     return err
   }
   defer rows.Close()
-
-  order := 1
   for rows.Next() {
-    var workoutID string
-    if err := rows.Scan(&workoutID); err != nil {
+    var id string
+    var name string
+    if err := rows.Scan(&id, &name); err != nil {
       return err
     }
-    _, _ = db.Exec("insert into program_workouts (program_id, workout_id, sort_order) values ($1, $2, $3) on conflict do nothing", programID, workoutID, order)
-    order++
+    workoutIDs[name] = id
   }
 
-  return rows.Err()
+  for _, p := range programs {
+    var programID string
+    err := db.QueryRow("select id from programs where name = $1", p.Name).Scan(&programID)
+    if err != nil {
+      if !errors.Is(err, sql.ErrNoRows) {
+        return err
+      }
+      err = db.QueryRow(
+        `insert into programs (name, description) values ($1, $2) returning id`,
+        p.Name,
+        p.Description,
+      ).Scan(&programID)
+      if err != nil {
+        return fmt.Errorf("insert program: %w", err)
+      }
+    }
+
+    order := 1
+    for _, w := range p.Workouts {
+      workoutID := workoutIDs[w]
+      if workoutID == "" {
+        continue
+      }
+      _, _ = db.Exec(
+        `insert into program_workouts (program_id, workout_id, sort_order)
+         values ($1, $2, $3)
+         on conflict do nothing`,
+        programID,
+        workoutID,
+        order,
+      )
+      order++
+    }
+  }
+
+  return nil
 }
 
 func seedAchievements(db *sql.DB) error {

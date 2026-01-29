@@ -3,9 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -14,6 +11,8 @@ import (
 	"rehab-app/internal/config"
 	"rehab-app/internal/db"
 	appmiddleware "rehab-app/internal/middleware"
+	"rehab-app/internal/site"
+	"rehab-app/internal/web"
 )
 
 func main() {
@@ -44,28 +43,20 @@ func main() {
 	apiHandler := api.New(database, cfg)
 	router.Mount("/api/v1", apiHandler.Router())
 
-	spaDir := "build"
-	fileServer := http.FileServer(http.Dir(spaDir))
+	renderer, err := web.NewRenderer()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	router.Handle("/assets/*", fileServer)
-	router.Handle("/favicon.ico", fileServer)
-	router.Handle("/manifest.json", fileServer)
+	sessions := &appmiddleware.SessionManager{
+		DB:         database,
+		CookieName: cfg.CookieName,
+		SessionTTL: cfg.SessionTTL,
+		Secure:     cfg.CookieSecure,
+	}
 
-	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			http.NotFound(w, r)
-			return
-		}
-
-		path := filepath.Join(spaDir, filepath.Clean(r.URL.Path))
-		info, err := os.Stat(path)
-		if err == nil && !info.IsDir() {
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-
-		http.ServeFile(w, r, filepath.Join(spaDir, "index.html"))
-	})
+	router.Handle("/assets/*", web.StaticHandler())
+	router.Mount("/", site.New(database, renderer, sessions, cfg).Router())
 
 	log.Printf("Server running on %s", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, router))

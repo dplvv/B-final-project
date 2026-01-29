@@ -1,28 +1,63 @@
-{{define "base"}}
-<!doctype html>
+{{ define "base" }}
+<!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/app.css" />
-  </head>
-  <body class="bg-gray-50">
-    {{if .UseShell}}
-    <div class="min-h-screen bg-gray-50 {{if .ShowNav}}pb-20{{end}}">
-      <div class="max-w-md mx-auto bg-white min-h-screen container-shadow">
-        {{template "flash" .}}
-        {{render .ContentTemplate .}}
-      </div>
-    </div>
-    {{else}}
-    {{template "flash" .}}
-    {{render .ContentTemplate .}}
-    {{end}}
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ if .Title }}{{ .Title }} · {{ end }}ГК «РОСАТОМ»</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  {{ if .HideNav }}
+    {{ template "content" . }}
+  {{ else }}
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-title">
+            <span class="brand-logo" aria-hidden="true">
+              <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="rosatomGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#1f7aec"/>
+                    <stop offset="100%" stop-color="#2dd4bf"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="60" cy="60" r="22" fill="url(#rosatomGradient)" opacity="0.18"/>
+                <path d="M60 20c20 0 36 16 36 36" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M24 46c17-11 40-6 51 11" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M28 88c8-18 28-28 48-24" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
+                <circle cx="60" cy="60" r="6" fill="#1f7aec"/>
+              </svg>
+            </span>
+            ГК «РОСАТОМ»
+          </div>
+          <div class="brand-subtitle">Система реабилитации сотрудников</div>
+        </div>
 
-    {{if .ShowNav}}
-      {{template "nav" .}}
-    {{end}}
-  </body>
+        {{ template "nav" . }}
+
+        <div class="sidebar-footer">
+          {{ if .User }}
+            <strong>{{ .User.Name }}</strong>
+            <small>{{ .User.Department }}</small>
+          {{ end }}
+          <form method="post" action="/logout">
+            <button class="button secondary" type="submit">Выйти</button>
+          </form>
+        </div>
+      </aside>
+
+      <main class="main">
+        {{ template "content" . }}
+      </main>
+    </div>
+
+    {{ template "mobile-nav" . }}
+  {{ end }}
+</body>
 </html>
-{{end}}
+{{ end }}

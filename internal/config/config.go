@@ -20,9 +20,10 @@ type Config struct {
 }
 
 func Load() Config {
+  defaultDB := "postgres://rehab:rehab@localhost:5432/rehab_app?sslmode=disable"
   return Config{
     Addr:             getEnv("APP_ADDR", ":8080"),
-    DatabaseURL:      getEnv("DATABASE_URL", ""),
+    DatabaseURL:      getEnv("DATABASE_URL", defaultDB),
     SessionTTL:       getDuration("SESSION_TTL", 24*time.Hour*7),
     APITokenTTL:      getDuration("API_TOKEN_TTL", 24*time.Hour*30),
     CookieName:       getEnv("COOKIE_NAME", "rehab_session"),

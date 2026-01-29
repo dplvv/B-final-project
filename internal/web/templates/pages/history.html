@@ -1,119 +1,40 @@
-{{define "content.history"}}
-<div class="min-h-screen bg-gray-50 pb-20">
-  <div class="bg-gradient-to-br from-teal-600 to-cyan-600 text-white p-6">
-    <div class="flex items-center gap-4 mb-2">
-      <a href="/profile" class="p-2 -ml-2">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <h1>История тренировок</h1>
-    </div>
-    <p class="text-teal-100 text-sm">Полный журнал активности</p>
+{{ define "content" }}
+<div class="page-header">
+  <div>
+    <div class="page-title">История изменений</div>
+    <div class="page-subtitle">Причины корректировок плана и журнал решений.</div>
   </div>
+  <a class="button secondary" href="/program">К плану</a>
+</div>
 
-  <div class="p-4 space-y-4">
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-white rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center gap-2 text-blue-600 mb-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span class="text-xs">Завершено</span>
-        </div>
-        <div class="text-2xl">{{.CompletedCount}}</div>
+<div class="notice" style="margin-bottom: 18px;">
+  История фиксирует причины адаптации: стоп-условия, прогрессия/регрессия нагрузки и пропуски.
+</div>
+
+<div class="card">
+  <div class="timeline">
+    {{ range .Changes }}
+      <div class="timeline-item">
+        <div class="timeline-date">{{ .ChangedAt }}</div>
+        <div class="timeline-reason">{{ .Reason }}</div>
       </div>
-
-      <div class="bg-white rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center gap-2 text-green-600 mb-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span class="text-xs">Минут</span>
-        </div>
-        <div class="text-2xl">{{.TotalDuration}}</div>
-      </div>
-
-      <div class="bg-white rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center gap-2 text-orange-600 mb-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-          </svg>
-          <span class="text-xs">Калорий</span>
-        </div>
-        <div class="text-2xl">{{.TotalCalories}}</div>
-      </div>
-
-      <div class="bg-white rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center gap-2 text-yellow-600 mb-2">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-          <span class="text-xs">Средний рейтинг</span>
-        </div>
-        <div class="text-2xl">{{printf "%.1f" .AverageRating}}</div>
-      </div>
-    </div>
-
-    <div class="flex gap-2">
-      <a href="/history?filter=all" class="flex-1 py-2 rounded-xl text-sm transition-colors {{if eq .Filter "all"}}bg-teal-600 text-white{{else}}bg-white text-gray-700{{end}}">Все</a>
-      <a href="/history?filter=completed" class="flex-1 py-2 rounded-xl text-sm transition-colors {{if eq .Filter "completed"}}bg-teal-600 text-white{{else}}bg-white text-gray-700{{end}}">Завершено</a>
-      <a href="/history?filter=skipped" class="flex-1 py-2 rounded-xl text-sm transition-colors {{if eq .Filter "skipped"}}bg-teal-600 text-white{{else}}bg-white text-gray-700{{end}}">Пропущено</a>
-    </div>
-
-    {{range .Groups}}
-    <div>
-      <h3 class="mb-3 capitalize text-gray-700">{{.Label}}</h3>
-      <div class="space-y-3 mb-4">
-        {{range .Items}}
-        <div class="rounded-2xl p-4 shadow-sm {{if .Completed}}bg-white border-2 border-transparent hover:border-teal-200{{else}}bg-gray-50 border-2 border-gray-200{{end}}">
-          <div class="flex items-start gap-4">
-            <div class="rounded-xl p-3 text-center flex-shrink-0 {{if .Completed}}bg-teal-50{{else}}bg-gray-100{{end}}">
-              <div class="text-lg mb-1 {{if .Completed}}text-teal-600{{else}}text-gray-500{{end}}">{{.Date.Day}}</div>
-              <div class="text-xs text-gray-600">{{weekday .Date}}</div>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-start justify-between mb-2">
-                <h4 class="{{if .Completed}}{{else}}text-gray-500{{end}}">{{.Name}}</h4>
-                {{if .Completed}}
-                <svg class="w-6 h-6 text-green-600 flex-shrink-0 ml-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {{else}}
-                <svg class="w-6 h-6 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                {{end}}
-              </div>
-              <div class="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                <div class="flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {{.Duration}} мин
-                </div>
-                <div class="flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
-                  </svg>
-                  {{.Exercises}} упр.
-                </div>
-                {{if gt .Calories 0}}
-                <div class="flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                  </svg>
-                  {{.Calories}} ккал
-                </div>
-                {{end}}
-              </div>
-            </div>
+    {{ else }}
+      {{ if .HistoryEmpty }}
+        <div class="empty-state">
+          <div class="empty-title">План ещё не сформирован</div>
+          <div class="muted">Заполните анкету, чтобы появилась история изменений.</div>
+          <div style="display:flex; gap:12px; margin-top: 12px; flex-wrap: wrap;">
+            <a class="button secondary" href="/questionnaire">Опросник</a>
           </div>
         </div>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
+      {{ else }}
+        <p class="muted">Изменений пока нет.</p>
+      {{ end }}
+    {{ end }}
   </div>
 </div>
-{{end}}
+{{ end }}
+
+{{ define "history" }}
+  {{ template "base" . }}
+{{ end }}

@@ -1,120 +1,260 @@
-{{define "content.program"}}
-<div class="min-h-screen bg-gray-50">
-  <div class="bg-blue-600 text-white p-6">
-    <h1 class="text-2xl mb-2">Программа тренировок</h1>
-    <p class="text-blue-100 text-sm">Персональная программа реабилитации</p>
+{{ define "content" }}
+<div class="page-header">
+  <div>
+    <div class="page-title">План реабилитации</div>
+    <div class="page-subtitle">Автоматически сформирован по анкете, целям и ограничениям.</div>
   </div>
-
-  <div class="bg-white border-b p-6">
-    <div class="flex items-center gap-4 mb-4">
-      <div class="bg-blue-100 p-3 rounded-xl">
-        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      </div>
-      <div>
-        <div class="text-sm text-gray-600">Уровень подготовки</div>
-        <div class="capitalize">
-          {{if eq .FitnessLevel "beginner"}}Начальный{{else if eq .FitnessLevel "intermediate"}}Средний{{else if eq .FitnessLevel "advanced"}}Продвинутый{{else}}Не определен{{end}}
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-4">
-      <div class="bg-green-50 rounded-xl p-4">
-        <div class="flex items-center gap-2 text-green-700 mb-1">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span class="text-sm">Выполнено</span>
-        </div>
-        <div class="text-2xl text-green-900">{{.CompletedCount}}</div>
-      </div>
-
-      <div class="bg-purple-50 rounded-xl p-4">
-        <div class="flex items-center gap-2 text-purple-700 mb-1">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span class="text-sm">Общее время</span>
-        </div>
-        <div class="text-2xl text-purple-900">{{.TotalDuration}} мин</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg">Недельный план</h2>
-      <div class="flex items-center gap-2 text-sm text-gray-600">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <span>Неделя 1</span>
-      </div>
-    </div>
-
-    <div class="space-y-3">
-      {{range $index, $workout := .Workouts}}
-      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div class="p-5">
-          <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 {{if $workout.Completed}}bg-green-100 text-green-600{{else}}bg-blue-100 text-blue-600{{end}}">
-              {{if $workout.Completed}}
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              {{else}}
-                <span class="text-lg">{{add $index 1}}</span>
-              {{end}}
-            </div>
-
-            <div class="flex-1">
-              <h3 class="mb-2">{{$workout.Name}}</h3>
-              <div class="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                <div class="flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{{$workout.Duration}} мин</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <span>{{$workout.Difficulty}}</span>
-                </div>
-              </div>
-
-              <div class="text-sm text-gray-600 mb-3">{{$workout.ExercisesCount}} упражнений</div>
-
-              <a href="/workouts/start?id={{$workout.ID}}" class="px-5 py-2.5 rounded-lg inline-flex items-center gap-2 transition-colors {{if $workout.Completed}}bg-gray-100 text-gray-700 hover:bg-gray-200{{else}}bg-blue-600 text-white hover:bg-blue-700{{end}}">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <span>{{if $workout.Completed}}Повторить{{else}}Начать{{end}}</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {{if not $workout.Completed}}
-        <div class="bg-blue-50 px-5 py-3 text-sm text-blue-700">
-          Рекомендуемая дата: {{$workout.RecommendedDate}}
-        </div>
-        {{end}}
-      </div>
-      {{end}}
-    </div>
-
-    <div class="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
-      <h3 class="text-amber-900 mb-2">Рекомендации специалиста</h3>
-      <ul class="space-y-2 text-sm text-amber-800">
-        <li class="flex gap-2"><span class="text-amber-600">•</span>Выполняйте упражнения медленно и контролируемо</li>
-        <li class="flex gap-2"><span class="text-amber-600">•</span>При появлении боли немедленно прекратите выполнение</li>
-        <li class="flex gap-2"><span class="text-amber-600">•</span>Соблюдайте рекомендованное время отдыха между подходами</li>
-      </ul>
-    </div>
+  <div style="display:flex; gap:12px; flex-wrap: wrap;">
+    {{ if not .SetupIncomplete }}
+      <a class="button secondary" href="/history">История изменений</a>
+      <form method="post" action="/plan/regenerate">
+        <button class="button primary" type="submit">Пересобрать план</button>
+      </form>
+    {{ else }}
+      <a class="button secondary" href="/questionnaire">Опросник</a>
+    {{ end }}
   </div>
 </div>
-{{end}}
+
+{{ if .SetupIncomplete }}
+  <div class="card setup-card" style="margin-bottom: 18px;">
+    <div class="card-header">
+      <div class="card-title">План недоступен</div>
+      <span class="badge">Нужны входные данные</span>
+    </div>
+    <p class="muted" style="margin-bottom: 12px;">Сначала заполните анкету — это необходимо для безопасного подбора нагрузки.</p>
+    <div style="display:flex; gap:12px; flex-wrap: wrap;">
+      <a class="button primary" href="/questionnaire">Заполнить опросник</a>
+    </div>
+  </div>
+{{ end }}
+
+{{ if .PlanPaused }}
+  <div class="notice error" style="margin-bottom: 18px;">
+    План приостановлен: {{ .PlanPausedReason }}. Рекомендуется консультация специалиста.
+  </div>
+{{ end }}
+
+{{ if .PlanError }}
+  <div class="notice error" style="margin-bottom: 18px;">{{ .PlanError }}</div>
+{{ end }}
+
+{{ if and .Plan (not .PlanWorkouts) }}
+  <div class="notice error" style="margin-bottom: 18px;">
+    Нет доступных тренировок по текущим ограничениям. Проверьте анкету или обратитесь к специалисту.
+  </div>
+{{ end }}
+
+{{ if .Plan }}
+  <div class="grid cols-2" style="margin-bottom: 24px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Ближайшая тренировка по плану</div>
+        {{ if .NextWorkout }}<span class="badge">{{ if .NextWorkout.ScheduledDate }}{{ .NextWorkout.ScheduledDate }}{{ else }}По плану{{ end }}</span>{{ end }}
+      </div>
+      {{ if .NextWorkout }}
+        <div style="display:grid; gap: 10px;">
+          <div style="font-weight: 600;">{{ .NextWorkout.Name }}</div>
+          <div class="muted">{{ .NextWorkout.Description }}</div>
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <span class="badge">{{ .NextWorkout.Duration }} мин</span>
+            <span class="badge">{{ .NextWorkout.Difficulty }}</span>
+            {{ if .NextWorkout.Category }}<span class="badge">{{ .NextWorkout.Category }}</span>{{ end }}
+            <span class="badge">Интенсивность {{ .NextWorkout.Intensity }}</span>
+          </div>
+          {{ if .PlanPaused }}
+            <div class="notice error">План приостановлен. Запуск недоступен.</div>
+          {{ else }}
+            {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
+              <a class="button primary" href="/sessions/{{ .NextWorkout.SessionID }}">Продолжить</a>
+            {{ else }}
+              <form method="post" action="/plan-workouts/{{ .NextWorkout.ID }}/start">
+                <button class="button primary" type="submit">Начать по плану</button>
+              </form>
+            {{ end }}
+          {{ end }}
+        </div>
+      {{ else }}
+        <div class="empty-state">
+          <div class="empty-title">Нет ближайших тренировок</div>
+          <div class="muted">Пересоберите план или уточните анкету.</div>
+        </div>
+      {{ end }}
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Статус плана</div>
+      </div>
+      <div class="info-list">
+        <div><strong>Цель:</strong> {{ .Plan.Goal }}</div>
+        <div><strong>Уровень:</strong> {{ .Plan.Level }}</div>
+        <div><strong>Частота:</strong> {{ .Plan.Frequency }} раз/нед</div>
+        <div><strong>Старт:</strong> {{ formatDate .Plan.CreatedAt }}</div>
+        {{ if .PlanPaused }}<div class="muted">План приостановлен</div>{{ end }}
+      </div>
+      <div style="margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap;">
+        <a class="button secondary" href="/history">История</a>
+        <form method="post" action="/plan/regenerate">
+          <button class="button secondary" type="submit">Пересобрать</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid cols-3" style="margin-bottom: 24px;">
+    <div class="card">
+      <div class="card-title">Цель</div>
+      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Goal }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Уровень</div>
+      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Level }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Частота</div>
+      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Frequency }} тренировок в неделю</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Старт плана</div>
+      <div style="margin-top: 8px; font-weight: 600;">{{ formatDate .Plan.CreatedAt }}</div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-bottom: 24px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Основание подбора</div>
+      </div>
+      <div class="info-list">
+        <div><strong>Цель анкеты:</strong> {{ .Questionnaire.Goal }}</div>
+        <div><strong>Уровень:</strong> {{ .Questionnaire.FitnessLevel }}</div>
+        <div><strong>Частота:</strong> {{ .Questionnaire.DaysPerWeek }} раз/нед</div>
+        <div><strong>Длительность:</strong> {{ .Questionnaire.SessionMinutes }} мин</div>
+        <div><strong>Инвентарь:</strong> {{ if .Questionnaire.Equipment }}{{ join .Questionnaire.Equipment ", " }}{{ else }}без инвентаря{{ end }}</div>
+        {{ if .Questionnaire.Preferences }}<div><strong>Предпочтения:</strong> {{ .Questionnaire.Preferences }}</div>{{ end }}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Безопасность</div>
+      </div>
+      <div class="info-list">
+        <div><strong>Ограничения:</strong> {{ if .Restrictions }}{{ join .Restrictions ", " }}{{ else }}не указаны{{ end }}</div>
+        <div><strong>Разрешение врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
+        {{ with .PlanLastChange }}<div><strong>Последнее изменение:</strong> {{ .Reason }}</div>{{ end }}
+      </div>
+    </div>
+  </div>
+{{ end }}
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Календарь тренировок</div>
+    <span class="badge">4 недели</span>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Неделя/день</th>
+        <th>Дата</th>
+        <th>Тренировка</th>
+        <th>Интенсивность</th>
+        <th>Статус</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .PlanWorkouts }}
+        <tr>
+          <td>Неделя {{ .Week }}, день {{ .Day }}</td>
+          <td>{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}—{{ end }}</td>
+          <td>
+            <div style="font-weight: 600;"><a href="/workouts/{{ .WorkoutID }}">{{ .Name }}</a></div>
+            <div class="muted">{{ .Duration }} мин · {{ .Difficulty }}{{ if .Category }} · {{ .Category }}{{ end }}</div>
+          </td>
+          <td><span class="badge">Уровень {{ .Intensity }}</span></td>
+          <td>
+            {{ if eq .Status "completed" }}
+              <span class="badge success">Выполнено</span>
+            {{ else if eq .Status "in_progress" }}
+              <span class="badge warning">В процессе</span>
+            {{ else if eq .Status "skipped" }}
+              <span class="badge danger">Пропуск</span>
+            {{ else }}
+              <span class="badge">Запланировано</span>
+            {{ end }}
+            {{ if eq .Status "skipped" }}
+              <div class="muted" style="margin-top: 6px;">{{ .SkipReason }}</div>
+            {{ end }}
+          </td>
+          <td>
+            {{ if $.PlanPaused }}
+              <span class="muted">План на паузе</span>
+            {{ else if eq .Status "completed" }}
+              {{ if .SessionID }}
+                <a class="button link" href="/sessions/{{ .SessionID }}">Отчет</a>
+              {{ else }}
+                <span class="muted">Завершено</span>
+              {{ end }}
+            {{ else }}
+              {{ if or (eq .Status "pending") (eq .Status "in_progress") }}
+                <div class="inline-form">
+                  <form method="post" action="/plan-workouts/{{ .ID }}/start">
+                    <button class="button primary" type="submit">Старт</button>
+                  </form>
+                  <form method="post" action="/plan-workouts/{{ .ID }}/skip" class="inline-form">
+                    <input type="text" name="skip_reason" placeholder="Причина" />
+                    <button class="button secondary" type="submit">Пропустить</button>
+                  </form>
+                </div>
+              {{ else }}
+                <span class="muted">Недоступно</span>
+              {{ end }}
+            {{ end }}
+          </td>
+        </tr>
+      {{ else }}
+        <tr>
+          <td colspan="6">Пока нет тренировок. Пересоберите план.</td>
+        </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+<div class="section-title" style="margin-top: 28px;">Программы</div>
+<div class="grid cols-3">
+  {{ range .Programs }}
+    <div class="card program-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">{{ .Name }}</div>
+          <div class="muted">{{ .Description }}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+        <span class="badge">{{ .Workouts }} тренировок</span>
+        <span class="badge">{{ .Duration }} мин</span>
+      </div>
+      <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+        <a class="button secondary" href="/programs/{{ .ID }}">Подробнее</a>
+        <form method="post" action="/programs/{{ .ID }}/start">
+          <button class="button primary" type="submit">Начать</button>
+        </form>
+      </div>
+    </div>
+  {{ else }}
+    <div class="card">
+      <div class="empty-state">
+        <div class="empty-title">Программы не добавлены</div>
+        <div class="muted">Администратор может добавить их в базе данных.</div>
+      </div>
+    </div>
+  {{ end }}
+</div>
+
+{{ end }}
+
+{{ define "program" }}
+  {{ template "base" . }}
+{{ end }}

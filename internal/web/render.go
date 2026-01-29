@@ -9,83 +9,71 @@ import (
 )
 
 type Renderer struct {
-  templates *template.Template
+  base *template.Template
 }
 
 func NewRenderer() (*Renderer, error) {
-  var tmpl *template.Template
   funcMap := template.FuncMap{
-    "upper": strings.ToUpper,
-    "split": strings.Split,
-    "render": func(name string, data any) template.HTML {
-      if name == "" || tmpl == nil {
-        return ""
+    "eq": func(a, b any) bool { return a == b },
+    "join": strings.Join,
+    "contains": func(list []string, value string) bool {
+      for _, item := range list {
+        if strings.EqualFold(item, value) {
+          return true
+        }
       }
-      var b strings.Builder
-      if err := tmpl.ExecuteTemplate(&b, name, data); err != nil {
-        return ""
-      }
-      return template.HTML(b.String())
-    },
-    "formatDate": func(value time.Time) string {
-      if value.IsZero() {
-        return ""
-      }
-      return value.Format("02.01.2006")
+      return false
     },
     "add": func(a, b int) int {
       return a + b
     },
-    "sub": func(a, b int) int {
-      return a - b
-    },
-    "percent": func(part, total int) int {
-      if total == 0 {
+    "percent": func(progress, total int) int {
+      if total <= 0 {
         return 0
       }
-      return int(float64(part) / float64(total) * 100)
-    },
-    "seq": func(n int) []int {
-      if n <= 0 {
-        return []int{}
+      value := int(float64(progress) / float64(total) * 100)
+      if value < 0 {
+        return 0
       }
-      out := make([]int, n)
-      for i := 0; i < n; i++ {
-        out[i] = i
+      if value > 100 {
+        return 100
       }
-      return out
+      return value
     },
-    "list": func(values ...string) []string {
-      return values
-    },
-    "weekday": func(value time.Time) string {
-      days := []string{"Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"}
-      index := int(value.Weekday())
-      if index < 0 || index >= len(days) {
+    "formatDate": func(t time.Time) string {
+      if t.IsZero() {
         return ""
       }
-      return days[index]
+      return t.Format("02.01.2006")
+    },
+    "formatDateTime": func(t time.Time) string {
+      if t.IsZero() {
+        return ""
+      }
+      return t.Format("02.01.2006 15:04")
     },
   }
 
-  parsed, err := template.New("base").Funcs(funcMap).ParseFS(
+  tmpl, err := template.New("base").Funcs(funcMap).ParseFS(
     FS,
     "templates/base.html",
     "templates/partials/*.html",
-    "templates/pages/*.html",
   )
   if err != nil {
     return nil, fmt.Errorf("parse templates: %w", err)
   }
 
-  tmpl = parsed
-  return &Renderer{templates: tmpl}, nil
+  return &Renderer{base: tmpl}, nil
 }
 
-func (r *Renderer) Render(w io.Writer, name string, data map[string]any) error {
-  if data == nil {
-    data = map[string]any{}
+func (r *Renderer) Render(w io.Writer, name string, data any) error {
+  tmpl, err := r.base.Clone()
+  if err != nil {
+    return fmt.Errorf("clone templates: %w", err)
   }
-  data["ContentTemplate"] = "content." + name
-  return r.templates.ExecuteTemplate(w, "base", data)
+  _, err = tmpl.ParseFS(FS, "templates/pages/"+name+".html")
+  if err != nil {
+    return fmt.Errorf("parse page template: %w", err)
+  }
+  return tmpl.ExecuteTemplate(w, name, data)
 }

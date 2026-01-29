@@ -1,0 +1,69 @@
+{{ define "content" }}
+<div class="page-header">
+  <div>
+    <div class="page-title">{{ .Exercise.Name }}</div>
+    <div class="page-subtitle">{{ .Exercise.Description }}</div>
+  </div>
+  <a class="button secondary" href="/exercises">К списку</a>
+</div>
+
+<div class="grid cols-2" style="margin-bottom: 24px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Параметры выполнения</div>
+    </div>
+    <div class="info-list">
+      <div><strong>Подходы:</strong> {{ if gt .Exercise.Sets 0 }}{{ .Exercise.Sets }}{{ else }}—{{ end }}</div>
+      <div><strong>Повторы:</strong> {{ if .Exercise.Reps }}{{ .Exercise.Reps }}{{ else }}—{{ end }}</div>
+      <div><strong>Отдых:</strong> {{ if gt .Exercise.Rest 0 }}{{ .Exercise.Rest }} сек{{ else }}—{{ end }}</div>
+      <div><strong>Сложность:</strong> {{ if .Exercise.Difficulty }}{{ .Exercise.Difficulty }}{{ else }}—{{ end }}</div>
+      <div><strong>Категория:</strong> {{ if .Exercise.Category }}{{ .Exercise.Category }}{{ else }}—{{ end }}</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Целевые зоны</div>
+    </div>
+    <div class="pill-section">
+      <div class="pill-label">Мышечные группы</div>
+      <div class="pill-list">
+        {{ range .Exercise.MuscleGroups }}
+          <span class="pill">{{ . }}</span>
+        {{ else }}
+          <span class="muted">Не указано</span>
+        {{ end }}
+      </div>
+    </div>
+    <div class="pill-section" style="margin-top: 12px;">
+      <div class="pill-label">Инвентарь</div>
+      <div class="pill-list">
+        {{ range .Exercise.Equipment }}
+          <span class="pill">{{ . }}</span>
+        {{ else }}
+          <span class="muted">Без инвентаря</span>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <div class="card-title">Видео выполнения</div>
+  </div>
+  {{ if .Exercise.VideoURL }}
+    <div class="video-frame">
+      <iframe src="{{ .Exercise.VideoURL }}" title="Видео упражнения" frameborder="0" allowfullscreen></iframe>
+    </div>
+  {{ else }}
+    <div class="empty-state">
+      <div class="empty-title">Видео пока не добавлено</div>
+      <div class="muted">Используйте описание и следите за техникой выполнения.</div>
+    </div>
+  {{ end }}
+</div>
+{{ end }}
+
+{{ define "exercise" }}
+  {{ template "base" . }}
+{{ end }}
