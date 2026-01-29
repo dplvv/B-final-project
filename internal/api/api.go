@@ -77,12 +77,6 @@ func (api *API) Router() chi.Router {
     r.Post("/recommendations/{id}/practice", api.RecommendationPractice)
 
     r.Get("/videos", api.Videos)
-    r.Get("/nutrition", api.Nutrition)
-    r.Get("/nutrition/water", api.NutritionWater)
-    r.Post("/nutrition/water", api.NutritionWaterUpdate)
-    r.Get("/nutrition/diary", api.NutritionDiary)
-    r.Post("/nutrition/diary", api.NutritionDiaryCreate)
-    r.Delete("/nutrition/diary/{id}", api.NutritionDiaryDelete)
 
     r.Get("/medical-info", api.MedicalInfo)
     r.Put("/medical-info", api.MedicalInfoUpdate)
@@ -152,11 +146,6 @@ func (api *API) Router() chi.Router {
         cr.Post("/videos", api.AdminVideosCreate)
         cr.Put("/videos/{id}", api.AdminVideosUpdate)
         cr.Delete("/videos/{id}", api.AdminVideosDelete)
-
-        cr.Get("/nutrition", api.AdminNutrition)
-        cr.Post("/nutrition", api.AdminNutritionCreate)
-        cr.Put("/nutrition/{id}", api.AdminNutritionUpdate)
-        cr.Delete("/nutrition/{id}", api.AdminNutritionDelete)
 
         cr.Get("/rewards", api.AdminRewards)
         cr.Post("/rewards", api.AdminRewardsCreate)

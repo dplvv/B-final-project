@@ -80,13 +80,6 @@ type videoPayload struct {
   URL         string `json:"url"`
 }
 
-type nutritionPayload struct {
-  Title       string `json:"title"`
-  Description string `json:"description"`
-  Calories    int    `json:"calories"`
-  Category    string `json:"category"`
-}
-
 type rewardPayload struct {
   Title       string `json:"title"`
   Description string `json:"description"`
@@ -945,113 +938,6 @@ func (api *API) AdminVideosDelete(w http.ResponseWriter, r *http.Request) {
   writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
 }
 
-func (api *API) AdminNutrition(w http.ResponseWriter, r *http.Request) {
-  rows, err := api.DB.Query(
-    `select id, title, description, coalesce(calories, 0), coalesce(category, '')
-     from nutrition_items
-     order by created_at desc`,
-  )
-  if err != nil {
-    writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
-    return
-  }
-  defer rows.Close()
-
-  items := []map[string]any{}
-  for rows.Next() {
-    var id, title, description, category string
-    var calories int
-    _ = rows.Scan(&id, &title, &description, &calories, &category)
-    items = append(items, map[string]any{
-      "id": id,
-      "title": title,
-      "description": description,
-      "calories": calories,
-      "category": category,
-    })
-  }
-
-  writeJSON(w, http.StatusOK, map[string]any{"nutrition": items})
-}
-
-func (api *API) AdminNutritionCreate(w http.ResponseWriter, r *http.Request) {
-  var req nutritionPayload
-  if err := decodeJSON(r, &req); err != nil {
-    writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid payload"})
-    return
-  }
-  if req.Title == "" || req.Description == "" {
-    writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing fields"})
-    return
-  }
-
-  var id string
-  err := api.DB.QueryRow(
-    `insert into nutrition_items (title, description, calories, category)
-     values ($1, $2, $3, $4)
-     returning id`,
-    req.Title,
-    req.Description,
-    req.Calories,
-    req.Category,
-  ).Scan(&id)
-  if err != nil {
-    writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
-    return
-  }
-
-  writeJSON(w, http.StatusCreated, map[string]any{"id": id})
-}
-
-func (api *API) AdminNutritionUpdate(w http.ResponseWriter, r *http.Request) {
-  id := chi.URLParam(r, "id")
-  if id == "" {
-    writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing id"})
-    return
-  }
-
-  var req nutritionPayload
-  if err := decodeJSON(r, &req); err != nil {
-    writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid payload"})
-    return
-  }
-
-  _, err := api.DB.Exec(
-    `update nutrition_items
-     set title = coalesce(nullif($1, ''), title),
-         description = coalesce(nullif($2, ''), description),
-         calories = $3,
-         category = $4
-     where id = $5`,
-    req.Title,
-    req.Description,
-    req.Calories,
-    req.Category,
-    id,
-  )
-  if err != nil {
-    writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
-    return
-  }
-
-  writeJSON(w, http.StatusOK, map[string]any{"status": "updated"})
-}
-
-func (api *API) AdminNutritionDelete(w http.ResponseWriter, r *http.Request) {
-  id := chi.URLParam(r, "id")
-  if id == "" {
-    writeJSON(w, http.StatusBadRequest, map[string]any{"error": "missing id"})
-    return
-  }
-
-  _, err := api.DB.Exec("delete from nutrition_items where id = $1", id)
-  if err != nil {
-    writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
-    return
-  }
-
-  writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
-}
 
 func (api *API) AdminRewards(w http.ResponseWriter, r *http.Request) {
   rows, err := api.DB.Query(

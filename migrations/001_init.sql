@@ -240,15 +240,6 @@ create table if not exists video_tutorials (
   created_at timestamptz not null default now()
 );
 
-create table if not exists nutrition_items (
-  id uuid primary key default uuid_generate_v4(),
-  title text not null unique,
-  description text not null,
-  calories int,
-  category text,
-  created_at timestamptz not null default now()
-);
-
 create table if not exists rewards (
   id uuid primary key default uuid_generate_v4(),
   title text not null unique,
