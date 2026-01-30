@@ -22,6 +22,24 @@
     <div class="card-title">Формат</div>
     <div style="margin-top: 8px; font-weight: 600;">Гибкая программа</div>
   </div>
+  <div class="card">
+    <div class="card-title">Мышечные группы</div>
+    <div style="margin-top: 8px; font-weight: 600;">
+      {{ if .Program.MuscleGroups }}{{ join .Program.MuscleGroups ", " }}{{ else }}Не указано{{ end }}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <div class="card-title">Подробное описание программы</div>
+  </div>
+  <p class="muted" style="margin-bottom: 12px;">{{ .Program.Description }}</p>
+  <ul class="guide-list">
+    <li>Программа состоит из {{ .Program.Workouts }} тренировок, собранных по уровню нагрузки и целевым зонам.</li>
+    <li>Каждая тренировка содержит подробные упражнения с видео и таймером выполнения.</li>
+    <li>После завершения сессии обратная связь используется для адаптации плана.</li>
+  </ul>
 </div>
 
 <div class="card">

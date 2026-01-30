@@ -6,6 +6,10 @@
   </div>
 </div>
 
+{{ if .Error }}
+  <div class="notice error" style="margin-bottom: 16px;">{{ .Error }}</div>
+{{ end }}
+
 <div class="card" style="margin-bottom: 20px;">
   <form class="form" method="get" action="/exercises">
     <div class="grid cols-2">

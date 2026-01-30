@@ -47,20 +47,34 @@
   </div>
 </div>
 
-<div class="card" style="margin-bottom: 24px;">
-  <div class="card-header">
-    <div class="card-title">Видео выполнения</div>
+<div class="grid cols-2" style="margin-bottom: 24px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Подробное описание</div>
+    </div>
+    <p class="muted" style="font-size: 15px; line-height: 1.5;">{{ .Exercise.Description }}</p>
+    <ul class="guide-list" style="margin-top: 12px;">
+      <li>Следуйте указанному количеству подходов ({{ if gt .Exercise.Sets 0 }}{{ .Exercise.Sets }}{{ else }}1{{ end }}) и повторов ({{ if .Exercise.Reps }}{{ .Exercise.Reps }}{{ else }}по самочувствию{{ end }}).</li>
+      <li>Контролируйте темп и дыхание: усилие на выдохе, возвращение в исходное положение на вдохе.</li>
+      <li>Если появляется боль или дискомфорт — остановитесь и отметьте это в обратной связи.</li>
+    </ul>
+    <div class="notice" style="margin-top: 12px;">Следите за техникой и не выполняйте упражнение через боль.</div>
   </div>
-  {{ if .Exercise.VideoURL }}
-    <div class="video-frame">
-      <iframe src="{{ .Exercise.VideoURL }}" title="Видео упражнения" frameborder="0" allowfullscreen></iframe>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Видео выполнения</div>
     </div>
-  {{ else }}
-    <div class="empty-state">
-      <div class="empty-title">Видео пока не добавлено</div>
-      <div class="muted">Используйте описание и следите за техникой выполнения.</div>
-    </div>
-  {{ end }}
+    {{ if .Exercise.VideoURL }}
+      <div class="video-frame">
+        <iframe src="{{ .Exercise.VideoURL }}" title="Видео упражнения" frameborder="0" allowfullscreen></iframe>
+      </div>
+    {{ else }}
+      <div class="empty-state">
+        <div class="empty-title">Видео пока не добавлено</div>
+        <div class="muted">Используйте описание и следите за техникой выполнения.</div>
+      </div>
+    {{ end }}
+  </div>
 </div>
 {{ end }}
 

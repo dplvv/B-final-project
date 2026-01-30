@@ -27,7 +27,3 @@
 - `/login`, `/register`
 - `/` (дашборд), `/program`, `/exercises`, `/profile`
 - `/workouts/{id}`, `/sessions/{id}`
-
-## API
-- `POST /api/v1/auth/login` -> `{ "employee_id": "...", "password": "..." }`
-- Для остальных API — `Authorization: Bearer <token>`

@@ -10,7 +10,6 @@ type Config struct {
   Addr             string
   DatabaseURL      string
   SessionTTL       time.Duration
-  APITokenTTL      time.Duration
   CookieName       string
   CookieSecure     bool
   Environment      string
@@ -25,13 +24,12 @@ func Load() Config {
     Addr:             getEnv("APP_ADDR", ":8080"),
     DatabaseURL:      getEnv("DATABASE_URL", defaultDB),
     SessionTTL:       getDuration("SESSION_TTL", 24*time.Hour*7),
-    APITokenTTL:      getDuration("API_TOKEN_TTL", 24*time.Hour*30),
     CookieName:       getEnv("COOKIE_NAME", "rehab_session"),
     CookieSecure:     getEnvBool("COOKIE_SECURE", false),
     Environment:      getEnv("APP_ENV", "development"),
     RunMigrations:    getEnvBool("RUN_MIGRATIONS", true),
     SeedData:         getEnvBool("SEED_DATA", true),
-    AllowSelfRegister: getEnvBool("ALLOW_SELF_REGISTER", true),
+    AllowSelfRegister: getEnvBool("ALLOW_SELF_REGISTER", false),
   }
 }
 

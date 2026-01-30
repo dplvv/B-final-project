@@ -4,7 +4,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ if .Title }}{{ .Title }} · {{ end }}ГК «РОСАТОМ»</title>
+  <title>{{ if .Title }}{{ .Title }} · {{ end }}РОСАТОМ</title>
+  <link rel="icon" href="/assets/logo_rosatom.svg?v=2" sizes="any" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/assets/logo_rosatom.svg?v=2" type="image/svg+xml" />
+  <link rel="mask-icon" href="/assets/logo_rosatom.svg?v=2" color="#1a2165" />
+  <link rel="apple-touch-icon" href="/assets/logo_rosatom.svg?v=2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -18,22 +22,7 @@
       <aside class="sidebar">
         <div class="brand">
           <div class="brand-title">
-            <span class="brand-logo" aria-hidden="true">
-              <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="rosatomGradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stop-color="#1f7aec"/>
-                    <stop offset="100%" stop-color="#2dd4bf"/>
-                  </linearGradient>
-                </defs>
-                <circle cx="60" cy="60" r="22" fill="url(#rosatomGradient)" opacity="0.18"/>
-                <path d="M60 20c20 0 36 16 36 36" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
-                <path d="M24 46c17-11 40-6 51 11" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
-                <path d="M28 88c8-18 28-28 48-24" fill="none" stroke="url(#rosatomGradient)" stroke-width="6" stroke-linecap="round"/>
-                <circle cx="60" cy="60" r="6" fill="#1f7aec"/>
-              </svg>
-            </span>
-            ГК «РОСАТОМ»
+            <img class="brand-logo-img" src="/assets/logo-c-ru.svg" alt="РОСАТОМ" />
           </div>
           <div class="brand-subtitle">Система реабилитации сотрудников</div>
         </div>

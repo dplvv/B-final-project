@@ -35,6 +35,12 @@
   </div>
 {{ end }}
 
+{{ if .DoctorGate }}
+  <div class="notice warning" style="margin-bottom: 18px;">
+    Допуск врача отсутствует. Тренировки будут доступны после подтверждения администратора.
+  </div>
+{{ end }}
+
 {{ if .PlanError }}
   <div class="notice error" style="margin-bottom: 18px;">{{ .PlanError }}</div>
 {{ end }}
@@ -62,7 +68,9 @@
             {{ if .NextWorkout.Category }}<span class="badge">{{ .NextWorkout.Category }}</span>{{ end }}
             <span class="badge">Интенсивность {{ .NextWorkout.Intensity }}</span>
           </div>
-          {{ if .PlanPaused }}
+          {{ if not .DoctorApproval }}
+            <div class="notice warning">Требуется допуск врача для начала.</div>
+          {{ else if .PlanPaused }}
             <div class="notice error">План приостановлен. Запуск недоступен.</div>
           {{ else }}
             {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
@@ -140,10 +148,25 @@
       </div>
       <div class="info-list">
         <div><strong>Ограничения:</strong> {{ if .Restrictions }}{{ join .Restrictions ", " }}{{ else }}не указаны{{ end }}</div>
-        <div><strong>Разрешение врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
+        <div><strong>Допуск врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
         {{ with .PlanLastChange }}<div><strong>Последнее изменение:</strong> {{ .Reason }}</div>{{ end }}
       </div>
     </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+      <div class="card-title">Подробное описание плана</div>
+    </div>
+    <p class="muted" style="margin-bottom: 12px;">
+      План сформирован на основе анкеты и ограничений и рассчитан на 4 недели с частотой {{ .Plan.Frequency }} тренировок в неделю.
+      Длительность одной сессии подбирается по уровню подготовки ({{ .Plan.Level }}), а интенсивность адаптируется по обратной связи.
+    </p>
+    <ul class="guide-list">
+      <li>Приоритет безопасности: ограничения и допуск врача учитываются до подбора упражнений.</li>
+      <li>Структура занятия включает разминку, основную часть и заминку.</li>
+      <li>Корректировки фиксируются в истории с указанием причины.</li>
+    </ul>
   </div>
 {{ end }}
 
@@ -188,7 +211,9 @@
             {{ end }}
           </td>
           <td>
-            {{ if $.PlanPaused }}
+            {{ if not $.DoctorApproval }}
+              <span class="muted">Нет допуска врача</span>
+            {{ else if $.PlanPaused }}
               <span class="muted">План на паузе</span>
             {{ else if eq .Status "completed" }}
               {{ if .SessionID }}
@@ -235,6 +260,7 @@
       <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
         <span class="badge">{{ .Workouts }} тренировок</span>
         <span class="badge">{{ .Duration }} мин</span>
+        {{ if .MuscleGroups }}<span class="badge">Группы: {{ join .MuscleGroups ", " }}</span>{{ end }}
       </div>
       <div style="display:flex; gap: 10px; flex-wrap: wrap;">
         <a class="button secondary" href="/programs/{{ .ID }}">Подробнее</a>

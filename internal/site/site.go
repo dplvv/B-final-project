@@ -7,6 +7,7 @@ import (
   "errors"
   "log"
   "net/http"
+  "net/url"
   "strconv"
   "strings"
   "time"
@@ -61,6 +62,7 @@ type programCard struct {
   Duration    int
   Difficulty  string
   Category    string
+  MuscleGroups []string
 }
 
 type sessionExercise struct {
@@ -91,9 +93,6 @@ type dashboardStats struct {
   Workouts           int
   Minutes            int
   Points             int
-  GoalsCompleted     int
-  GoalsTotal         int
-  GoalsPercent       int
   AchievementPercent int
 }
 
@@ -103,6 +102,67 @@ type profileView struct {
   FitnessLevel string
   Goals        []string
   Points       int
+}
+
+type supportTicketView struct {
+  ID        string
+  Subject   string
+  Message   string
+  Status    string
+  CreatedAt string
+  Response  string
+  EmployeeName string
+  EmployeeID   string
+}
+
+type rewardView struct {
+  ID          string
+  Title       string
+  Description string
+  PointsCost  int
+  Category    string
+}
+
+type managerEmployeeView struct {
+  ID                 string
+  Name               string
+  EmployeeID         string
+  Department         string
+  Position           string
+  Role               string
+  DoctorApproval     bool
+  Points             int
+  AchievementsTotal  int
+  AchievementsUnlocked int
+}
+
+type redemptionView struct {
+  ID          string
+  EmployeeName string
+  Department  string
+  RewardTitle string
+  PointsCost  int
+}
+
+type feedbackAdminView struct {
+  EmployeeName     string
+  WorkoutName      string
+  PerceivedExertion int
+  Tolerance         int
+  PainLevel         int
+  Wellbeing         int
+  Comment           string
+  CreatedAt         string
+}
+
+type adminPlanView struct {
+  UserID     string
+  Name       string
+  EmployeeID string
+  PlanID     string
+  Goal       string
+  Level      string
+  Status     string
 }
 
 func New(dbConn *sql.DB, renderer *web.Renderer, sessions *middleware.SessionManager, cfg config.Config) *Site {
@@ -117,11 +177,16 @@ func (s *Site) Router() chi.Router {
   r.Post("/login", s.loginSubmit)
   r.Get("/register", s.registerPage)
   r.Post("/register", s.registerSubmit)
+  r.Get("/password-reset", s.passwordResetPage)
+  r.Post("/password-reset", s.passwordResetSubmit)
   r.Post("/logout", s.logout)
 
   r.Group(func(pr chi.Router) {
     pr.Use(s.Sessions.RequireAuth)
+    pr.Use(s.requirePasswordChange)
     pr.Get("/", s.dashboard)
+    pr.Get("/change-password", s.changePasswordPage)
+    pr.Post("/change-password", s.changePasswordSubmit)
     pr.Get("/questionnaire", s.questionnairePage)
     pr.Post("/questionnaire", s.questionnaireSubmit)
     pr.Get("/program", s.planPage)
@@ -141,8 +206,54 @@ func (s *Site) Router() chi.Router {
     pr.Get("/history", s.planHistory)
     pr.Get("/leaderboard", s.leaderboard)
     pr.Get("/achievements", s.achievementsPage)
+    pr.Get("/rewards", s.rewardsPage)
+    pr.Post("/rewards/{id}/redeem", s.rewardRedeem)
+    pr.Get("/support", s.supportPage)
+    pr.Post("/support", s.supportSubmit)
     pr.Get("/profile", s.profile)
     pr.Post("/profile", s.profileUpdate)
+
+    pr.Route("/manager", func(mr chi.Router) {
+      mr.Use(s.requireRoles("manager"))
+      mr.Get("/", s.managerDashboard)
+      mr.Get("/employees/{id}", s.managerEmployee)
+      mr.Post("/employees/{id}/award", s.managerAward)
+      mr.Post("/redemptions/{id}/approve", s.managerRedemptionApprove)
+      mr.Post("/redemptions/{id}/reject", s.managerRedemptionReject)
+    })
+
+    pr.Route("/admin", func(ar chi.Router) {
+      ar.Use(s.requireRoles("admin"))
+      ar.Get("/", s.adminDashboard)
+      ar.Get("/exercises", s.adminExercises)
+      ar.Post("/exercises", s.adminExerciseCreate)
+      ar.Post("/exercises/{id}/update", s.adminExerciseUpdate)
+      ar.Get("/workouts", s.adminWorkouts)
+      ar.Post("/workouts", s.adminWorkoutCreate)
+      ar.Post("/workouts/{id}/update", s.adminWorkoutUpdate)
+      ar.Get("/workouts/{id}", s.adminWorkoutDetail)
+      ar.Post("/workouts/{id}/exercises/add", s.adminWorkoutExerciseAdd)
+      ar.Post("/workouts/{id}/exercises/{exerciseId}/remove", s.adminWorkoutExerciseRemove)
+      ar.Get("/programs", s.adminPrograms)
+      ar.Post("/programs", s.adminProgramCreate)
+      ar.Post("/programs/{id}/update", s.adminProgramUpdate)
+      ar.Get("/programs/{id}", s.adminProgramDetail)
+      ar.Post("/programs/{id}/workouts/add", s.adminProgramWorkoutAdd)
+      ar.Post("/programs/{id}/workouts/{workoutId}/remove", s.adminProgramWorkoutRemove)
+      ar.Get("/plans", s.adminPlans)
+      ar.Get("/plans/{id}", s.adminPlanDetail)
+      ar.Post("/plans/{id}/regenerate", s.adminPlanRegenerate)
+      ar.Post("/plans/{id}/pause", s.adminPlanPause)
+      ar.Post("/plans/{id}/resume", s.adminPlanResume)
+      ar.Post("/plans/{id}/workouts/{planWorkoutId}/replace", s.adminPlanWorkoutReplace)
+      ar.Post("/users/create", s.adminUserCreate)
+      ar.Post("/users/{id}/update", s.adminUserUpdate)
+      ar.Post("/users/{id}/reset-password", s.adminUserResetPassword)
+      ar.Get("/feedback", s.adminFeedback)
+      ar.Get("/support", s.adminSupport)
+      ar.Post("/support/{id}/respond", s.adminSupportRespond)
+      ar.Post("/password-requests/{id}/resolve", s.adminPasswordRequestResolve)
+    })
   })
 
   return r
@@ -161,6 +272,52 @@ func (s *Site) render(w http.ResponseWriter, name string, data map[string]any) {
     log.Printf("render %s: %v", name, err)
     http.Error(w, "template error", http.StatusInternalServerError)
   }
+}
+
+func (s *Site) requireRoles(roles ...string) func(http.Handler) http.Handler {
+  allowed := map[string]bool{}
+  for _, role := range roles {
+    allowed[role] = true
+  }
+  return func(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+      user := middleware.UserFromContext(r.Context())
+      if user == nil || !allowed[user.Role] {
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+      }
+      next.ServeHTTP(w, r)
+    })
+  }
+}
+
+func (s *Site) requirePasswordChange(next http.Handler) http.Handler {
+  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path == "/change-password" || r.URL.Path == "/logout" {
+      next.ServeHTTP(w, r)
+      return
+    }
+    user := middleware.UserFromContext(r.Context())
+    if user == nil {
+      next.ServeHTTP(w, r)
+      return
+    }
+    var temp bool
+    _ = s.DB.QueryRow(`select password_temp from users where id = $1`, user.ID).Scan(&temp)
+    if temp {
+      http.Redirect(w, r, "/change-password", http.StatusSeeOther)
+      return
+    }
+    next.ServeHTTP(w, r)
+  })
+}
+
+func (s *Site) requireDoctorApproval(w http.ResponseWriter, r *http.Request, userID string) bool {
+  if !s.loadDoctorApproval(userID) {
+    http.Redirect(w, r, "/program?doctor=1", http.StatusSeeOther)
+    return false
+  }
+  return true
 }
 
 func (s *Site) loginPage(w http.ResponseWriter, r *http.Request) {
@@ -202,8 +359,16 @@ func (s *Site) loginSubmit(w http.ResponseWriter, r *http.Request) {
 
   _ = db.EnsureUserDefaults(s.DB, userID)
 
+  var tempPassword bool
+  _ = s.DB.QueryRow(`select password_temp from users where id = $1`, userID).Scan(&tempPassword)
+
   if err := s.createSession(w, userID); err != nil {
     http.Redirect(w, r, "/login?error=Ошибка%20сессии", http.StatusSeeOther)
+    return
+  }
+
+  if tempPassword {
+    http.Redirect(w, r, "/change-password", http.StatusSeeOther)
     return
   }
 
@@ -261,7 +426,7 @@ func (s *Site) registerSubmit(w http.ResponseWriter, r *http.Request) {
     nullIfEmpty(position),
   ).Scan(&userID)
   if err != nil {
-    http.Redirect(w, r, "/register?error=Табельный%20номер%20уже%20занят", http.StatusSeeOther)
+    http.Redirect(w, r, "/register?error=ID-сотрудника%20уже%20занят", http.StatusSeeOther)
     return
   }
 
@@ -272,6 +437,85 @@ func (s *Site) registerSubmit(w http.ResponseWriter, r *http.Request) {
   }
 
   http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Site) passwordResetPage(w http.ResponseWriter, r *http.Request) {
+  data := s.baseData(r, "Сброс пароля", "")
+  data["HideNav"] = true
+  data["Success"] = r.URL.Query().Get("success")
+  data["Error"] = r.URL.Query().Get("error")
+  s.render(w, "password_reset", data)
+}
+
+func (s *Site) passwordResetSubmit(w http.ResponseWriter, r *http.Request) {
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/password-reset?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  employeeID := strings.TrimSpace(r.FormValue("employee_id"))
+  if employeeID == "" {
+    http.Redirect(w, r, "/password-reset?error=Введите%20ID-сотрудника", http.StatusSeeOther)
+    return
+  }
+
+  var userID string
+  err := s.DB.QueryRow(`select id from users where employee_id = $1`, employeeID).Scan(&userID)
+  if err == nil {
+    var existing string
+    err = s.DB.QueryRow(
+      `select id from password_reset_requests where user_id = $1 and status = 'open'`,
+      userID,
+    ).Scan(&existing)
+    if err != nil {
+      _, _ = s.DB.Exec(
+        `insert into password_reset_requests (user_id) values ($1)`,
+        userID,
+      )
+    }
+  }
+
+  http.Redirect(w, r, "/password-reset?success=Заявка%20отправлена.%20Администратор%20свяжется%20с%20вами", http.StatusSeeOther)
+}
+
+func (s *Site) changePasswordPage(w http.ResponseWriter, r *http.Request) {
+  data := s.baseData(r, "Смена пароля", "")
+  data["HideNav"] = true
+  data["Error"] = r.URL.Query().Get("error")
+  s.render(w, "change_password", data)
+}
+
+func (s *Site) changePasswordSubmit(w http.ResponseWriter, r *http.Request) {
+  user := middleware.UserFromContext(r.Context())
+  if user == nil {
+    http.Redirect(w, r, "/login", http.StatusSeeOther)
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/change-password?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  password := r.FormValue("password")
+  confirm := r.FormValue("password_confirm")
+  if len(password) < 8 {
+    http.Redirect(w, r, "/change-password?error=Минимум%208%20символов", http.StatusSeeOther)
+    return
+  }
+  if password != confirm {
+    http.Redirect(w, r, "/change-password?error=Пароли%20не%20совпадают", http.StatusSeeOther)
+    return
+  }
+
+  hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+  if err != nil {
+    http.Redirect(w, r, "/change-password?error=Ошибка%20пароля", http.StatusSeeOther)
+    return
+  }
+  _, _ = s.DB.Exec(
+    `update users set password_hash = $1, password_temp = false, updated_at = now() where id = $2`,
+    string(hash),
+    user.ID,
+  )
+  http.Redirect(w, r, "/?password_changed=1", http.StatusSeeOther)
 }
 
 func (s *Site) logout(w http.ResponseWriter, r *http.Request) {
@@ -321,22 +565,6 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
     user.ID,
   ).Scan(&stats.Points)
 
-  var goalsTotal int
-  var goalsCompleted int
-  _ = s.DB.QueryRow(
-    `select count(*) from goals where user_id = $1`,
-    user.ID,
-  ).Scan(&goalsTotal)
-  _ = s.DB.QueryRow(
-    `select count(*) from goals where user_id = $1 and progress >= 100`,
-    user.ID,
-  ).Scan(&goalsCompleted)
-  stats.GoalsTotal = goalsTotal
-  stats.GoalsCompleted = goalsCompleted
-  if goalsTotal > 0 {
-    stats.GoalsPercent = int(float64(goalsCompleted) / float64(goalsTotal) * 100)
-  }
-
   var achievementsTotal int
   var achievementsUnlocked int
   _ = s.DB.QueryRow(`select count(*) from user_achievements where user_id = $1`, user.ID).Scan(&achievementsTotal)
@@ -346,6 +574,7 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
   }
 
   var nextWorkout *planWorkoutView
+  var goal string
   if !setupIncomplete {
     plan, planErr := s.ensurePlan(user.ID)
     if plan != nil {
@@ -353,6 +582,7 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
       data["PlanPausedReason"] = plan.PausedReason
       data["PlanLevel"] = plan.Level
       data["PlanFrequency"] = plan.Frequency
+      goal = plan.Goal
     }
     if planErr != nil {
       data["PlanError"] = "Не удалось сформировать план. Проверьте анкету."
@@ -360,9 +590,16 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
 
     nextWorkout, _ = s.fetchNextPlanWorkout(user.ID)
   }
+  if goal == "" {
+    if q, err := s.loadQuestionnaire(user.ID); err == nil {
+      goal = q.Goal
+    }
+  }
 
   data["Stats"] = stats
   data["NextWorkout"] = nextWorkout
+  data["DoctorApproved"] = s.loadDoctorApproval(user.ID)
+  data["Goal"] = goal
   s.render(w, "dashboard", data)
 }
 
@@ -402,11 +639,13 @@ func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
     for rows.Next() {
       var ex exerciseCard
       _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+      ex.VideoURL = normalizeVideoURL(ex.VideoURL)
       exercises = append(exercises, ex)
     }
   }
 
   data := s.baseData(r, workout.Name, "program")
+  data["DoctorApproved"] = s.loadDoctorApproval(middleware.UserFromContext(r.Context()).ID)
   data["Workout"] = workout
   data["Exercises"] = exercises
   data["WorkoutEquipment"] = uniqueStrings(exercises, func(ex exerciseCard) []string { return ex.Equipment })
@@ -419,6 +658,9 @@ func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
 func (s *Site) startWorkout(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
   if s.ensureOnboarding(w, r, user.ID) {
+    return
+  }
+  if !s.requireDoctorApproval(w, r, user.ID) {
     return
   }
   if plan, _ := s.getActivePlan(user.ID); plan != nil && plan.Status == "paused" {
@@ -487,6 +729,7 @@ func (s *Site) exercises(w http.ResponseWriter, r *http.Request) {
   data := s.baseData(r, "Упражнения", "exercises")
   query := strings.TrimSpace(r.URL.Query().Get("q"))
   difficulty := strings.TrimSpace(r.URL.Query().Get("difficulty"))
+  data["Error"] = r.URL.Query().Get("error")
 
   rows, err := s.DB.Query(
     `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
@@ -505,6 +748,8 @@ func (s *Site) exercises(w http.ResponseWriter, r *http.Request) {
     for rows.Next() {
       var ex exerciseCard
       _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+      ex.ID = normalizeResourceID(ex.ID)
+      ex.VideoURL = normalizeVideoURL(ex.VideoURL)
       exercises = append(exercises, ex)
     }
   }
@@ -517,6 +762,8 @@ func (s *Site) exercises(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  w.Header().Set("Cache-Control", "no-store")
+  _ = db.EnsureUserDefaults(s.DB, user.ID)
   view := profileView{User: *user}
 
   _ = s.DB.QueryRow(
@@ -532,7 +779,11 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
   data := s.baseData(r, "Профиль", "profile")
   data["Profile"] = view
   data["Success"] = r.URL.Query().Get("success")
+  data["CanEditProfile"] = user.Role == "admin"
   q, _ := s.loadQuestionnaire(user.ID)
+  if q.SessionMinutes == 0 {
+    q.SessionMinutes = sessionMinutesForLevel(resolveLevel(q.FitnessLevel))
+  }
   data["Questionnaire"] = q
   data["QuestionnaireComplete"] = !s.needsQuestionnaire(user.ID)
   var restrictions []string
@@ -545,6 +796,10 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) profileUpdate(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  if user.Role != "admin" {
+    http.Error(w, "forbidden", http.StatusForbidden)
+    return
+  }
   if err := r.ParseForm(); err != nil {
     http.Redirect(w, r, "/profile", http.StatusSeeOther)
     return
@@ -597,9 +852,10 @@ func (s *Site) profileUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
-  exerciseID := chi.URLParam(r, "id")
+  rawParam := strings.TrimSpace(chi.URLParam(r, "id"))
+  exerciseID := normalizeResourceID(rawParam)
   if exerciseID == "" {
-    http.NotFound(w, r)
+    http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
     return
   }
 
@@ -608,13 +864,25 @@ func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
     `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
             coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
             coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
-     from exercises where id = $1`,
+     from exercises
+     where replace(lower(id::text), '-', '') = replace($1, '-', '')`,
     exerciseID,
   ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
   if err != nil {
-    http.NotFound(w, r)
-    return
+    err = s.DB.QueryRow(
+      `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
+              coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
+              coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
+       from exercises where lower(name) = lower($1)`,
+      rawParam,
+    ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+    if err != nil {
+      http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
+      return
+    }
   }
+  ex.ID = normalizeResourceID(ex.ID)
+  ex.VideoURL = normalizeVideoURL(ex.VideoURL)
 
   data := s.baseData(r, ex.Name, "exercises")
   data["Exercise"] = ex
@@ -630,10 +898,10 @@ func (s *Site) programDetail(w http.ResponseWriter, r *http.Request) {
 
   var program programCard
   err := s.DB.QueryRow(
-    `select p.id, p.name, p.description
+    `select p.id, p.name, p.description, coalesce(p.muscle_groups, '{}')
      from programs p where p.id = $1`,
     programID,
-  ).Scan(&program.ID, &program.Name, &program.Description)
+  ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
   if err != nil {
     http.NotFound(w, r)
     return
@@ -667,6 +935,9 @@ func (s *Site) programDetail(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) programStart(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  if !s.requireDoctorApproval(w, r, user.ID) {
+    return
+  }
   programID := chi.URLParam(r, "id")
   if programID == "" {
     http.NotFound(w, r)
@@ -799,7 +1070,7 @@ func (s *Site) pickExercises(category, difficulty string, limit int) []string {
 
 func (s *Site) fetchPrograms() []programCard {
   rows, err := s.DB.Query(
-    `select p.id, p.name, p.description
+    `select p.id, p.name, p.description, coalesce(p.muscle_groups, '{}')
      from programs p
      where p.active = true
      order by p.created_at`,
@@ -812,7 +1083,7 @@ func (s *Site) fetchPrograms() []programCard {
   programs := []programCard{}
   for rows.Next() {
     var p programCard
-    if err := rows.Scan(&p.ID, &p.Name, &p.Description); err != nil {
+    if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.MuscleGroups); err != nil {
       continue
     }
     var workouts int
@@ -1038,15 +1309,6 @@ func (s *Site) completeWorkoutSession(userID, sessionID string) error {
     points,
     userID,
   )
-  _, _ = s.DB.Exec(
-    `insert into notifications (user_id, title, message, type)
-     values ($1, $2, $3, $4)`,
-    userID,
-    "Начислены баллы",
-    "Вы получили 10 баллов за завершение тренировки",
-    "success",
-  )
-
   s.updateAchievements(userID)
   return nil
 }
@@ -1079,6 +1341,90 @@ func parseCSV(value string) []string {
     }
   }
   return out
+}
+
+func normalizeVideoURL(value string) string {
+  trimmed := strings.TrimSpace(value)
+  if trimmed == "" {
+    return ""
+  }
+  if strings.Contains(trimmed, "<iframe") {
+    if src := extractIframeSrc(trimmed); src != "" {
+      trimmed = src
+    }
+  }
+  if strings.Contains(trimmed, "youtube.com/embed/") {
+    return trimmed
+  }
+  if strings.HasPrefix(trimmed, "youtu.be/") || strings.HasPrefix(trimmed, "youtube.com/") || strings.HasPrefix(trimmed, "www.youtube.com/") {
+    trimmed = "https://" + trimmed
+  }
+  parsed, err := url.Parse(trimmed)
+  if err != nil {
+    return trimmed
+  }
+  host := strings.ToLower(parsed.Host)
+  path := strings.Trim(parsed.Path, "/")
+  if strings.Contains(host, "youtu.be") {
+    if path != "" {
+      id := strings.Split(path, "/")[0]
+      if id != "" {
+        return "https://www.youtube.com/embed/" + id
+      }
+    }
+    return trimmed
+  }
+  if strings.Contains(host, "youtube.com") {
+    if strings.HasPrefix(path, "embed/") {
+      return trimmed
+    }
+    if strings.HasPrefix(path, "shorts/") {
+      id := strings.TrimPrefix(path, "shorts/")
+      if id != "" {
+        return "https://www.youtube.com/embed/" + id
+      }
+    }
+    if strings.HasPrefix(path, "live/") {
+      id := strings.TrimPrefix(path, "live/")
+      if id != "" {
+        return "https://www.youtube.com/embed/" + id
+      }
+    }
+    if strings.HasSuffix(path, "watch") || path == "watch" {
+      vid := parsed.Query().Get("v")
+      if vid != "" {
+        return "https://www.youtube.com/embed/" + vid
+      }
+    }
+  }
+  return trimmed
+}
+
+func extractIframeSrc(value string) string {
+  srcIndex := strings.Index(strings.ToLower(value), "src=")
+  if srcIndex == -1 {
+    return ""
+  }
+  rest := value[srcIndex+4:]
+  if len(rest) == 0 {
+    return ""
+  }
+  quote := rest[0]
+  if quote != '"' && quote != '\'' {
+    return ""
+  }
+  end := strings.IndexByte(rest[1:], quote)
+  if end == -1 {
+    return ""
+  }
+  return rest[1 : 1+end]
+}
+
+func normalizeResourceID(value string) string {
+  trimmed := strings.TrimSpace(value)
+  trimmed = strings.Trim(trimmed, "{}")
+  trimmed = strings.ToLower(trimmed)
+  return trimmed
 }
 
 func uniqueStrings(exercises []exerciseCard, selector func(exerciseCard) []string) []string {

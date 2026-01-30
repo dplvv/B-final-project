@@ -4,9 +4,13 @@
     <div class="page-title">{{ .Workout.Name }}</div>
     <div class="page-subtitle">{{ .Workout.Description }}</div>
   </div>
-  <form method="post" action="/workouts/{{ .Workout.ID }}/start">
-    <button class="button primary" type="submit">Начать тренировку</button>
-  </form>
+  {{ if .DoctorApproved }}
+    <form method="post" action="/workouts/{{ .Workout.ID }}/start">
+      <button class="button primary" type="submit">Начать тренировку</button>
+    </form>
+  {{ else }}
+    <span class="badge warning">Требуется допуск врача</span>
+  {{ end }}
 </div>
 
 <div class="grid cols-3" style="margin-bottom: 24px;">

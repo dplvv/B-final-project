@@ -24,7 +24,7 @@
       <div><strong>Инвентарь:</strong> {{ if .Questionnaire.Equipment }}{{ join .Questionnaire.Equipment ", " }}{{ else }}без инвентаря{{ end }}</div>
       {{ if .Questionnaire.Preferences }}<div><strong>Предпочтения:</strong> {{ .Questionnaire.Preferences }}</div>{{ end }}
       <div><strong>Ограничения:</strong> {{ if .SelectedRestrictions }}{{ join .SelectedRestrictions ", " }}{{ else }}не указаны{{ end }}</div>
-      <div><strong>Разрешение врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
+      <div><strong>Допуск врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
     </div>
   </div>
   <a class="button primary" href="/profile">Вернуться в профиль</a>
@@ -71,11 +71,6 @@
           <input type="number" name="days_per_week" min="1" max="7" value="{{ if gt .Questionnaire.DaysPerWeek 0 }}{{ .Questionnaire.DaysPerWeek }}{{ end }}" required />
           {{ with index .Errors "days_per_week" }}<div class="error-text">{{ . }}</div>{{ end }}
         </div>
-        <div class="form-group">
-          <label>Длительность занятия (мин)</label>
-          <input type="number" name="session_minutes" min="10" max="120" value="{{ if gt .Questionnaire.SessionMinutes 0 }}{{ .Questionnaire.SessionMinutes }}{{ end }}" required />
-          {{ with index .Errors "session_minutes" }}<div class="error-text">{{ . }}</div>{{ end }}
-        </div>
       </div>
     </div>
 
@@ -104,10 +99,7 @@
           {{ end }}
         </div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" name="doctor_approval" {{ if .DoctorApproval }}checked{{ end }} />
-        <span>Есть разрешение врача на занятия</span>
-      </label>
+      <div class="notice" style="margin-top: 12px;">Допуск врача заполняет администратор. Сейчас: {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}.</div>
     </div>
 
     <div class="quiz-actions">

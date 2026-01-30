@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"rehab-app/internal/api"
 	"rehab-app/internal/config"
 	"rehab-app/internal/db"
 	appmiddleware "rehab-app/internal/middleware"
@@ -37,11 +36,9 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.RealIP)
+	router.Use(middleware.StripSlashes)
 	router.Use(appmiddleware.Logger)
 	router.Use(appmiddleware.Recover)
-
-	apiHandler := api.New(database, cfg)
-	router.Mount("/api/v1", apiHandler.Router())
 
 	renderer, err := web.NewRenderer()
 	if err != nil {

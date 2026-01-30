@@ -5,14 +5,60 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="888b7ea2-faa1-4695-8d42-a37855f4f386" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/admin.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/api/admin.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/api.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/api/api.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/media.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/api/media.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/nutrition_extra.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/achievements.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/admin.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/api.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/auth_extra.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/calendar.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/community.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/context.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/exercises_extra.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/feedback.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/goals.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/handlers.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/helpers.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/manager.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/media.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/medical.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/notifications.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/profile.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/recommendations.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/roles.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/settings.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/stats.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/streak.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/support.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/utils.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/api/workouts.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/config/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/config/config.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/db/seed.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/db/seed.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/models/models.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/models/models.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/site/site.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/site.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/site/training.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/training.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/static/app.css" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/static/app.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/base.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/achievements.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/achievements.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/exercise.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/exercise.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/exercises.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/exercises.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/login.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/profile.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/profile.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/program.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/program.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/program_detail.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/program_detail.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/register.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/register.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/session.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/session.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/workout.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/workout.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/partials/nav.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/partials/nav.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/migrations/001_init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/migrations/001_init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/003_nutrition_tracking.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/002_settings_updates.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/004_training_module.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/005_drop_norms.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/006_drop_nutrition.sql" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -1,0 +1,78 @@
+{{ define "content" }}
+<div class="page-header">
+  <div>
+    <div class="page-title">Панель руководителя</div>
+    <div class="page-subtitle">Контроль достижений и поощрений сотрудников.</div>
+  </div>
+</div>
+
+<div class="grid cols-2" style="margin-bottom: 24px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Сотрудники отдела</div>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Сотрудник</th>
+          <th>ID</th>
+          <th>Баллы</th>
+          <th>Достижения</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Employees }}
+          <tr>
+            <td>{{ .Name }}</td>
+            <td>{{ .EmployeeID }}</td>
+            <td>{{ .Points }}</td>
+            <td>{{ .AchievementsUnlocked }}/{{ .AchievementsTotal }}</td>
+            <td><a class="button link" href="/manager/employees/{{ .ID }}">Подробнее</a></td>
+          </tr>
+        {{ else }}
+          <tr>
+            <td colspan="5">Сотрудники не найдены.</td>
+          </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Запросы на поощрения</div>
+    </div>
+    <div class="grid" style="gap: 12px;">
+      {{ range .Redemptions }}
+        <div class="card softer">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ .RewardTitle }}</div>
+              <div class="muted">{{ .EmployeeName }} · {{ .Department }}</div>
+            </div>
+            <span class="badge">{{ .PointsCost }} баллов</span>
+          </div>
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <form method="post" action="/manager/redemptions/{{ .ID }}/approve">
+              <button class="button primary" type="submit">Одобрить</button>
+            </form>
+            <form method="post" action="/manager/redemptions/{{ .ID }}/reject">
+              <button class="button secondary" type="submit">Отклонить</button>
+            </form>
+          </div>
+        </div>
+      {{ else }}
+        <div class="empty-state">
+          <div class="empty-title">Запросов пока нет</div>
+          <div class="muted">Сотрудники ещё не оформили поощрения.</div>
+        </div>
+      {{ end }}
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "manager" }}
+  {{ template "base" . }}
+{{ end }}

@@ -11,11 +11,12 @@
     <div class="card achievement-card">
       <div class="achievement-icon">{{ .Icon }}</div>
       <div>
-        <div class="card-title">{{ .Title }}</div>
+        <div class="achievement-title">{{ .Title }}</div>
         <div class="muted" style="margin-top: 6px;">{{ .Description }}</div>
       </div>
       <div class="progress" style="margin-top: 14px;"><span style="width: {{ percent .Progress .Total }}%;"></span></div>
       <div class="achievement-status">
+        {{ if gt .PointsReward 0 }}<span class="badge">+{{ .PointsReward }} баллов</span>{{ end }}
         {{ if .Unlocked }}
           <span class="badge success">Получено</span>
         {{ else }}

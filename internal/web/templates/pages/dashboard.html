@@ -80,7 +80,9 @@
         {{ if .NextWorkout.Category }}<span class="badge">{{ .NextWorkout.Category }}</span>{{ end }}
         <span class="badge">Интенсивность {{ .NextWorkout.Intensity }}</span>
       </div>
-      {{ if .PlanPaused }}
+      {{ if not .DoctorApproved }}
+        <div class="notice warning" style="margin-top: 16px;">Допуск врача отсутствует. Запуск тренировок недоступен.</div>
+      {{ else if .PlanPaused }}
         <div class="notice error" style="margin-top: 16px;">План приостановлен. Запуск недоступен.</div>
       {{ else }}
         {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
@@ -114,8 +116,12 @@
         <div class="progress"><span style="width: {{ .Stats.AchievementPercent }}%;"></span></div>
       </div>
       <div>
-        <div class="stat-label" style="margin-bottom: 6px;">Цели ({{ .Stats.GoalsCompleted }}/{{ .Stats.GoalsTotal }})</div>
-        <div class="progress"><span style="width: {{ .Stats.GoalsPercent }}%;"></span></div>
+        <div class="stat-label" style="margin-bottom: 6px;">Цель программы</div>
+        {{ if .Goal }}
+          <span class="badge">{{ .Goal }}</span>
+        {{ else }}
+          <span class="muted">Заполните анкету</span>
+        {{ end }}
       </div>
       <div class="notice">Продолжайте в том же темпе — у вас отличный прогресс за неделю!</div>
     </div>
