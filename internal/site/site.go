@@ -144,6 +144,13 @@ type redemptionView struct {
   PointsCost  int
 }
 
+type managerWorkoutView struct {
+  Name        string
+  CompletedAt string
+  Duration    int
+  Calories    int
+}
+
 type feedbackAdminView struct {
   EmployeeName     string
   WorkoutName      string
@@ -853,10 +860,25 @@ func (s *Site) profileUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
   rawParam := strings.TrimSpace(chi.URLParam(r, "id"))
-  exerciseID := normalizeResourceID(rawParam)
-  if exerciseID == "" {
+  if rawParam == "" {
     http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
     return
+  }
+  exerciseID := normalizeResourceID(rawParam)
+  if !looksLikeUUID(exerciseID) {
+    exerciseID = ""
+  }
+  nameParam := strings.TrimSpace(r.URL.Query().Get("name"))
+  if nameParam == "" {
+    nameParam = strings.ReplaceAll(rawParam, "+", " ")
+    if decoded, err := url.PathUnescape(nameParam); err == nil {
+      nameParam = decoded
+    }
+  }
+  nameParam = strings.TrimSpace(nameParam)
+  namePattern := ""
+  if nameParam != "" {
+    namePattern = "%" + nameParam + "%"
   }
 
   var ex exerciseCard
@@ -865,21 +887,18 @@ func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
             coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
             coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
      from exercises
-     where replace(lower(id::text), '-', '') = replace($1, '-', '')`,
+     where ($1 <> '' and id::text = $1)
+        or ($2 <> '' and lower(name) = lower($2))
+        or ($2 <> '' and replace(replace(lower(name), ' ', ''), '-', '') = replace(replace(lower($2), ' ', ''), '-', ''))
+        or ($3 <> '' and lower(name) like lower($3))
+     limit 1`,
     exerciseID,
+    nameParam,
+    namePattern,
   ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
   if err != nil {
-    err = s.DB.QueryRow(
-      `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
-              coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
-              coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
-       from exercises where lower(name) = lower($1)`,
-      rawParam,
-    ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
-    if err != nil {
-      http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
-      return
-    }
+    http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
+    return
   }
   ex.ID = normalizeResourceID(ex.ID)
   ex.VideoURL = normalizeVideoURL(ex.VideoURL)
@@ -1353,6 +1372,9 @@ func normalizeVideoURL(value string) string {
       trimmed = src
     }
   }
+  if isYouTubeID(trimmed) {
+    return "https://www.youtube.com/embed/" + trimmed
+  }
   if strings.Contains(trimmed, "youtube.com/embed/") {
     return trimmed
   }
@@ -1400,6 +1422,19 @@ func normalizeVideoURL(value string) string {
   return trimmed
 }
 
+func isYouTubeID(value string) bool {
+  if len(value) != 11 {
+    return false
+  }
+  for _, r := range value {
+    if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+      continue
+    }
+    return false
+  }
+  return true
+}
+
 func extractIframeSrc(value string) string {
   srcIndex := strings.Index(strings.ToLower(value), "src=")
   if srcIndex == -1 {
@@ -1425,6 +1460,25 @@ func normalizeResourceID(value string) string {
   trimmed = strings.Trim(trimmed, "{}")
   trimmed = strings.ToLower(trimmed)
   return trimmed
+}
+
+func looksLikeUUID(value string) bool {
+  if len(value) != 36 {
+    return false
+  }
+  for i, r := range value {
+    switch i {
+    case 8, 13, 18, 23:
+      if r != '-' {
+        return false
+      }
+    default:
+      if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+        return false
+      }
+    }
+  }
+  return true
 }
 
 func uniqueStrings(exercises []exerciseCard, selector func(exerciseCard) []string) []string {

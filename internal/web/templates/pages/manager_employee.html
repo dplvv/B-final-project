@@ -64,6 +64,36 @@
     </tbody>
   </table>
 </div>
+
+<div class="card" style="margin-top: 20px;">
+  <div class="card-header">
+    <div class="card-title">Выполненные тренировки</div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Тренировка</th>
+        <th>Дата</th>
+        <th>Длительность</th>
+        <th>Ккал</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .Workouts }}
+        <tr>
+          <td>{{ .Name }}</td>
+          <td>{{ .CompletedAt }}</td>
+          <td>{{ .Duration }} мин</td>
+          <td>{{ .Calories }}</td>
+        </tr>
+      {{ else }}
+        <tr>
+          <td colspan="4">Завершённых тренировок пока нет.</td>
+        </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
 {{ end }}
 
 {{ define "manager_employee" }}

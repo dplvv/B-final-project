@@ -28,7 +28,7 @@ func Load() Config {
     CookieSecure:     getEnvBool("COOKIE_SECURE", false),
     Environment:      getEnv("APP_ENV", "development"),
     RunMigrations:    getEnvBool("RUN_MIGRATIONS", true),
-    SeedData:         getEnvBool("SEED_DATA", true),
+    SeedData:         getEnvBool("SEED_DATA", false),
     AllowSelfRegister: getEnvBool("ALLOW_SELF_REGISTER", false),
   }
 }

@@ -7,58 +7,20 @@
     <list default="true" id="888b7ea2-faa1-4695-8d42-a37855f4f386" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/achievements.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/admin.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/api.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/auth_extra.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/calendar.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/community.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/context.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/exercises_extra.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/feedback.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/goals.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/handlers.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/helpers.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/manager.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/media.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/medical.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/notifications.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/profile.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/recommendations.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/roles.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/settings.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/stats.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/streak.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/support.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/utils.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/api/workouts.go" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/config/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/config/config.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/db/seed.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/db/seed.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/models/models.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/models/models.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/site/admin_content.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/admin_content.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/site/portal.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/portal.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/site/site.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/site.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/site/training.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/training.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/static/app.css" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/static/app.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/base.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/achievements.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/achievements.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/exercise.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/exercise.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/render.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/render.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/admin.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/admin.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/admin_exercises.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/admin_exercises.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/exercises.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/exercises.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/login.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/profile.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/profile.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/program.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/program.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/program_detail.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/program_detail.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/register.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/register.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/history.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/history.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/manager_employee.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/manager_employee.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/session.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/session.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/workout.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/workout.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/partials/nav.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/partials/nav.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/migrations/001_init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/migrations/001_init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/002_settings_updates.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/004_training_module.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/005_drop_norms.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/006_drop_nutrition.sql" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,7 +28,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="212" />
+    <option name="cachedIndexableFilesCount" value="65" />
   </component>
   <component name="GOROOT" url="file://$USER_HOME$/sdk/go1.25.6" />
   <component name="Git.Settings">
@@ -84,10 +46,10 @@
     &quot;accountId&quot;: &quot;b9e76d96-460b-449b-929d-35cb2d3098c0&quot;
   }
 }</component>
-  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
-  <component name="KubernetesApiProvider"><![CDATA[{
-  "isMigrated": true
-}]]></component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -100,30 +62,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.GoLinterPluginOnboardingV2": "true",
-    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/Users/dplvv",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/Users/dplvv/Library/Application Support/JetBrains/GoLand2025.3/projects/GoLandWorkspace/node_modules/typescript/lib"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginOnboardingV2&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/dplvv&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/Users/dplvv/Library/Application Support/JetBrains/GoLand2025.3/projects/GoLandWorkspace/node_modules/typescript/lib&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

@@ -4,11 +4,13 @@ import (
   "net/http"
   "strconv"
   "strings"
+  "time"
 
   "github.com/go-chi/chi/v5"
 )
 
 func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
+  w.Header().Set("Cache-Control", "no-store")
   data := s.baseData(r, "Упражнения", "admin")
   data["Success"] = r.URL.Query().Get("success")
   data["Error"] = r.URL.Query().Get("error")
@@ -26,7 +28,6 @@ func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
     for rows.Next() {
       var ex exerciseCard
       _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
-      ex.VideoURL = normalizeVideoURL(ex.VideoURL)
       exercises = append(exercises, ex)
     }
   }
@@ -48,7 +49,7 @@ func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
   rest, _ := strconv.Atoi(r.FormValue("rest_seconds"))
   muscles := parseCSV(r.FormValue("muscle_groups"))
   equipment := parseCSV(r.FormValue("equipment"))
-  video := normalizeVideoURL(r.FormValue("video_url"))
+  video := strings.TrimSpace(r.FormValue("video_url"))
   if name == "" || description == "" {
     http.Redirect(w, r, "/admin/exercises?error=Заполните%20название%20и%20описание", http.StatusSeeOther)
     return
@@ -83,7 +84,7 @@ func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  http.Redirect(w, r, "/admin/exercises?success=Упражнение%20сохранено", http.StatusSeeOther)
+  http.Redirect(w, r, "/admin/exercises?success=Упражнение%20сохранено&ts="+strconv.FormatInt(time.Now().Unix(), 10), http.StatusSeeOther)
 }
 
 func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +106,10 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
   rest, _ := strconv.Atoi(r.FormValue("rest_seconds"))
   muscles := parseCSV(r.FormValue("muscle_groups"))
   equipment := parseCSV(r.FormValue("equipment"))
-  video := normalizeVideoURL(r.FormValue("video_url"))
+  video := strings.TrimSpace(r.FormValue("video_url"))
+  if video == "" {
+    _ = s.DB.QueryRow(`select coalesce(video_url, '') from exercises where id = $1`, exerciseID).Scan(&video)
+  }
 
   _, err := s.DB.Exec(
     `update exercises
@@ -137,7 +141,7 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin/exercises?error=Не%20удалось%20обновить", http.StatusSeeOther)
     return
   }
-  http.Redirect(w, r, "/admin/exercises?success=Упражнение%20обновлено", http.StatusSeeOther)
+  http.Redirect(w, r, "/admin/exercises?success=Упражнение%20обновлено&ts="+strconv.FormatInt(time.Now().Unix(), 10), http.StatusSeeOther)
 }
 
 func (s *Site) adminWorkouts(w http.ResponseWriter, r *http.Request) {

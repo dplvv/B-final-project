@@ -2,15 +2,7 @@
 <div class="page-header">
   <div>
     <div class="page-title">Администрирование</div>
-    <div class="page-subtitle">Управление пользователями и допусками.</div>
-  </div>
-  <div style="display:flex; gap:12px; flex-wrap: wrap;">
-    <a class="button secondary" href="/admin/exercises">Упражнения</a>
-    <a class="button secondary" href="/admin/workouts">Тренировки</a>
-    <a class="button secondary" href="/admin/programs">Программы</a>
-    <a class="button secondary" href="/admin/plans">Планы</a>
-    <a class="button secondary" href="/admin/feedback">Отзывы</a>
-    <a class="button secondary" href="/admin/support">Обращения</a>
+    <div class="page-subtitle">Управление пользователями, контентом и безопасностью системы.</div>
   </div>
 </div>
 
@@ -20,6 +12,68 @@
 {{ if .Error }}
   <div class="notice error" style="margin-bottom: 16px;">{{ .Error }}</div>
 {{ end }}
+
+<div class="grid cols-3" style="margin-bottom: 24px;">
+  <div class="card stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Stats.Users }}</div>
+      <div class="stat-label">Пользователей в системе</div>
+    </div>
+  </div>
+  <div class="card stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M4 10h16"/></svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Stats.Content }}</div>
+      <div class="stat-label">Программ и тренировок</div>
+    </div>
+  </div>
+  <div class="card stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10l4 4"/><circle cx="12" cy="12" r="10"/></svg>
+    </div>
+    <div>
+      <div class="stat-value">{{ .Stats.Pending }}</div>
+      <div class="stat-label">Ожидает внимания</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <div class="card-title">Разделы администрирования</div>
+  </div>
+  <div class="grid cols-3">
+    <a class="card softer" href="/admin/exercises" style="text-decoration:none;">
+      <div class="card-title">Упражнения</div>
+      <div class="muted">Библиотека и видео</div>
+    </a>
+    <a class="card softer" href="/admin/workouts" style="text-decoration:none;">
+      <div class="card-title">Тренировки</div>
+      <div class="muted">Состав и параметры</div>
+    </a>
+    <a class="card softer" href="/admin/programs" style="text-decoration:none;">
+      <div class="card-title">Программы</div>
+      <div class="muted">Сценарии реабилитации</div>
+    </a>
+    <a class="card softer" href="/admin/plans" style="text-decoration:none;">
+      <div class="card-title">Планы</div>
+      <div class="muted">Назначения сотрудникам</div>
+    </a>
+    <a class="card softer" href="/admin/feedback" style="text-decoration:none;">
+      <div class="card-title">Отзывы</div>
+      <div class="muted">Обратная связь</div>
+    </a>
+    <a class="card softer" href="/admin/support" style="text-decoration:none;">
+      <div class="card-title">Обращения</div>
+      <div class="muted">Заявки и вопросы</div>
+    </a>
+  </div>
+</div>
 
 <div class="grid cols-2" style="margin-bottom: 24px;">
   <div class="card">
@@ -120,6 +174,8 @@
           <td>{{ if .DoctorApproval }}Есть{{ else }}Нет{{ end }}</td>
           <td>
             <form method="post" action="/admin/users/{{ .ID }}/update" class="inline-form" style="gap:8px; flex-wrap: wrap;">
+              <input type="text" name="name" placeholder="ФИО" value="{{ .Name }}" />
+              <input type="text" name="employee_id" placeholder="ID" value="{{ .EmployeeID }}" />
               <input type="text" name="department" placeholder="Отдел" value="{{ .Department }}" />
               <input type="text" name="position" placeholder="Должность" value="{{ .Position }}" />
               <select name="role">

@@ -148,16 +148,7 @@ func seedExercises(db *sql.DB) error {
     _, err := db.Exec(
       `insert into exercises (name, description, category, difficulty, sets, reps, rest_seconds, muscle_groups, equipment, video_url)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       on conflict (name)
-       do update set description = excluded.description,
-                     category = excluded.category,
-                     difficulty = excluded.difficulty,
-                     sets = excluded.sets,
-                     reps = excluded.reps,
-                     rest_seconds = excluded.rest_seconds,
-                     muscle_groups = excluded.muscle_groups,
-                     equipment = excluded.equipment,
-                     video_url = excluded.video_url`,
+       on conflict (name) do nothing`,
       ex.Name,
       ex.Description,
       ex.Category,
@@ -206,11 +197,7 @@ func seedWorkouts(db *sql.DB) error {
     _, err := db.Exec(
       `insert into workouts (name, description, duration_minutes, difficulty, category)
        values ($1, $2, $3, $4, $5)
-       on conflict (name)
-       do update set description = excluded.description,
-                     duration_minutes = excluded.duration_minutes,
-                     difficulty = excluded.difficulty,
-                     category = excluded.category`,
+       on conflict (name) do nothing`,
       w.Name,
       w.Description,
       w.Duration,
@@ -307,10 +294,19 @@ func seedWorkoutExercises(db *sql.DB) error {
     {workout: "Кор и пресс", exercise: "Боковая планка", order: 3},
   }
 
+  workoutHasExercises := map[string]bool{}
   for _, item := range items {
     workoutID := workoutIDs[item.workout]
     exerciseID := exerciseIDs[item.exercise]
     if workoutID == "" || exerciseID == "" {
+      continue
+    }
+    if _, checked := workoutHasExercises[workoutID]; !checked {
+      var count int
+      _ = db.QueryRow(`select count(*) from workout_exercises where workout_id = $1`, workoutID).Scan(&count)
+      workoutHasExercises[workoutID] = count > 0
+    }
+    if workoutHasExercises[workoutID] {
       continue
     }
     _, _ = db.Exec(
@@ -436,6 +432,7 @@ func seedPrograms(db *sql.DB) error {
 
   for _, p := range programs {
     var programID string
+    inserted := false
     err := db.QueryRow("select id from programs where name = $1", p.Name).Scan(&programID)
     if err != nil {
       if !errors.Is(err, sql.ErrNoRows) {
@@ -450,13 +447,11 @@ func seedPrograms(db *sql.DB) error {
       if err != nil {
         return fmt.Errorf("insert program: %w", err)
       }
-    } else {
-      _, _ = db.Exec(
-        `update programs set description = $1, muscle_groups = $2 where id = $3`,
-        p.Description,
-        p.Muscles,
-        programID,
-      )
+      inserted = true
+    }
+
+    if !inserted {
+      continue
     }
 
     order := 1
@@ -501,10 +496,7 @@ func seedAchievements(db *sql.DB) error {
     _, err := db.Exec(
       `insert into achievements (title, description, icon, points_reward)
        values ($1, $2, $3, $4)
-       on conflict (title)
-       do update set description = excluded.description,
-                     icon = excluded.icon,
-                     points_reward = excluded.points_reward`,
+       on conflict (title) do nothing`,
       a.Title,
       a.Description,
       a.Icon,

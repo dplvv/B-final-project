@@ -118,6 +118,12 @@
             <div class="form-group" style="grid-column: span 2;">
               <label>YouTube ссылка</label>
               <input name="video_url" value="{{ .VideoURL }}" />
+              {{ if .VideoURL }}
+                <div class="muted" style="margin-top: 6px;">
+                  <a href="{{ .VideoURL }}" target="_blank" rel="noreferrer">Открыть видео</a>
+                </div>
+                <div class="muted" style="margin-top: 4px;">Сохранено: {{ .VideoURL }}</div>
+              {{ end }}
             </div>
           </div>
           <button class="button secondary" type="submit">Обновить</button>

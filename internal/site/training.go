@@ -175,12 +175,16 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
   )
 
   restrictions := r.Form["restrictions"]
+  if restrictions == nil {
+    restrictions = []string{}
+  }
   _, _ = s.DB.Exec(
-    `update medical_info
-     set restrictions = $1, updated_at = now()
-     where user_id = $2`,
-    restrictions,
+    `insert into medical_info (user_id, restrictions, updated_at)
+     values ($1, $2, now())
+     on conflict (user_id)
+     do update set restrictions = excluded.restrictions, updated_at = now()`,
     user.ID,
+    restrictions,
   )
 
   if questionnaireChanged(previous, q, prevRestrictions, restrictions) {
@@ -439,35 +443,73 @@ func (s *Site) sessionFeedback(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) planHistory(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
-  plan, _ := s.getActivePlan(user.ID)
   data := s.baseData(r, "История", "history")
-  if plan == nil {
-    data["HistoryEmpty"] = true
-    data["Changes"] = []planChangeView{}
-    s.render(w, "history", data)
-    return
-  }
+  plan, _ := s.getActivePlan(user.ID)
 
-  rows, err := s.DB.Query(
-    `select changed_at, reason from training_plan_changes
-     where plan_id = $1
-     order by changed_at desc`,
-    plan.ID,
-  )
-  changes := []planChangeView{}
-  if err == nil {
-    defer rows.Close()
-    for rows.Next() {
-      var changedAt time.Time
-      var reason string
-      _ = rows.Scan(&changedAt, &reason)
-      changes = append(changes, planChangeView{
-        ChangedAt: changedAt.Format("02.01.2006 15:04"),
-        Reason:    reason,
-      })
+  type historyEntry struct {
+    When   time.Time
+    Reason string
+  }
+  entries := []historyEntry{}
+
+  if plan != nil {
+    rows, err := s.DB.Query(
+      `select changed_at, reason from training_plan_changes
+       where plan_id = $1
+       order by changed_at desc`,
+      plan.ID,
+    )
+    if err == nil {
+      defer rows.Close()
+      for rows.Next() {
+        var changedAt time.Time
+        var reason string
+        _ = rows.Scan(&changedAt, &reason)
+        entries = append(entries, historyEntry{When: changedAt, Reason: reason})
+      }
     }
   }
 
+  rows, err := s.DB.Query(
+    `select rr.status, r.title, coalesce(rr.handled_at, rr.redeemed_at)
+     from reward_redemptions rr
+     join rewards r on r.id = rr.reward_id
+     where rr.user_id = $1 and rr.status in ('approved', 'rejected')
+     order by coalesce(rr.handled_at, rr.redeemed_at) desc`,
+    user.ID,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var status string
+      var title string
+      var when time.Time
+      _ = rows.Scan(&status, &title, &when)
+      reason := "Поощрение «" + title + "»"
+      if status == "approved" {
+        reason += " одобрено"
+      } else {
+        reason += " отклонено"
+      }
+      entries = append(entries, historyEntry{When: when, Reason: reason})
+    }
+  }
+
+  sort.Slice(entries, func(i, j int) bool {
+    return entries[i].When.After(entries[j].When)
+  })
+
+  changes := make([]planChangeView, 0, len(entries))
+  for _, entry := range entries {
+    changes = append(changes, planChangeView{
+      ChangedAt: entry.When.Format("02.01.2006 15:04"),
+      Reason:    entry.Reason,
+    })
+  }
+
+  if plan == nil && len(changes) == 0 {
+    data["HistoryEmpty"] = true
+  }
   data["Changes"] = changes
   s.render(w, "history", data)
 }

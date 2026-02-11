@@ -43,7 +43,7 @@ func (s *Site) rewardsPage(w http.ResponseWriter, r *http.Request) {
 
   redemptionStatus := map[string]string{}
   rows, err = s.DB.Query(
-    `select reward_id, status from reward_redemptions where user_id = $1 order by redeemed_at desc`,
+    `select reward_id, status from reward_redemptions where user_id = $1 and status = 'pending' order by redeemed_at desc`,
     user.ID,
   )
   if err == nil {
@@ -280,10 +280,32 @@ func (s *Site) managerEmployee(w http.ResponseWriter, r *http.Request) {
     }
   }
 
+  workoutHistory := []managerWorkoutView{}
+  rows, err = s.DB.Query(
+    `select w.name, ws.completed_at, coalesce(ws.duration_minutes, 0), coalesce(ws.calories_burned, 0)
+     from workout_sessions ws
+     join workouts w on w.id = ws.workout_id
+     where ws.user_id = $1 and ws.completed_at is not null
+     order by ws.completed_at desc
+     limit 12`,
+    employee.ID,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var v managerWorkoutView
+      var completedAt time.Time
+      _ = rows.Scan(&v.Name, &completedAt, &v.Duration, &v.Calories)
+      v.CompletedAt = completedAt.Format("02.01.2006 15:04")
+      workoutHistory = append(workoutHistory, v)
+    }
+  }
+
   data := s.baseData(r, employee.Name, "manager")
   data["Employee"] = employee
   data["Points"] = points
   data["Achievements"] = achievements
+  data["Workouts"] = workoutHistory
   s.render(w, "manager_employee", data)
 }
 
@@ -349,7 +371,7 @@ func (s *Site) managerRedemptionApprove(w http.ResponseWriter, r *http.Request) 
   }
 
   _, _ = s.DB.Exec(
-    `update reward_redemptions set status = 'approved', approved_by = $1 where id = $2`,
+    `update reward_redemptions set status = 'approved', approved_by = $1, handled_at = now() where id = $2`,
     user.ID,
     redemptionID,
   )
@@ -388,7 +410,7 @@ func (s *Site) managerRedemptionReject(w http.ResponseWriter, r *http.Request) {
   }
 
   _, _ = s.DB.Exec(
-    `update reward_redemptions set status = 'rejected', approved_by = $1 where id = $2`,
+    `update reward_redemptions set status = 'rejected', approved_by = $1, handled_at = now() where id = $2`,
     user.ID,
     redemptionID,
   )
@@ -405,6 +427,24 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
   data := s.baseData(r, "Администрирование", "admin")
   data["Success"] = r.URL.Query().Get("success")
   data["Error"] = r.URL.Query().Get("error")
+
+  var usersCount int
+  _ = s.DB.QueryRow(`select count(*) from users`).Scan(&usersCount)
+  var programs int
+  var workouts int
+  _ = s.DB.QueryRow(`select count(*) from programs`).Scan(&programs)
+  _ = s.DB.QueryRow(`select count(*) from workouts`).Scan(&workouts)
+  var pendingResets int
+  var pendingSupport int
+  var pendingRewards int
+  _ = s.DB.QueryRow(`select count(*) from password_reset_requests where status = 'open'`).Scan(&pendingResets)
+  _ = s.DB.QueryRow(`select count(*) from support_tickets where status = 'open'`).Scan(&pendingSupport)
+  _ = s.DB.QueryRow(`select count(*) from reward_redemptions where status = 'pending'`).Scan(&pendingRewards)
+  data["Stats"] = map[string]int{
+    "Users":   usersCount,
+    "Content": programs + workouts,
+    "Pending": pendingResets + pendingSupport + pendingRewards,
+  }
 
   rows, err := s.DB.Query(
     `select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
@@ -505,23 +545,33 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
     return
   }
 
+  name := strings.TrimSpace(r.FormValue("name"))
+  employeeID := strings.TrimSpace(r.FormValue("employee_id"))
   department := strings.TrimSpace(r.FormValue("department"))
   position := strings.TrimSpace(r.FormValue("position"))
   role := strings.TrimSpace(r.FormValue("role"))
   doctorApproval := r.FormValue("doctor_approval") == "on"
 
-  _, _ = s.DB.Exec(
+  _, err := s.DB.Exec(
     `update users set
-       department = case when $1 <> '' then $1 else department end,
-       position = case when $2 <> '' then $2 else position end,
-       role = case when $3 <> '' then $3 else role end,
+       name = case when $1 <> '' then $1 else name end,
+       employee_id = case when $2 <> '' then $2 else employee_id end,
+       department = case when $3 <> '' then $3 else department end,
+       position = case when $4 <> '' then $4 else position end,
+       role = case when $5 <> '' then $5 else role end,
        updated_at = now()
-     where id = $4`,
+     where id = $6`,
+    name,
+    employeeID,
     department,
     position,
     role,
     userID,
   )
+  if err != nil {
+    http.Redirect(w, r, "/admin?error=Не%20удалось%20обновить%20пользователя", http.StatusSeeOther)
+    return
+  }
   _, _ = s.DB.Exec(
     `insert into medical_info (user_id, doctor_approval, updated_at)
      values ($2, $1, now())

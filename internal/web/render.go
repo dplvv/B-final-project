@@ -4,6 +4,7 @@ import (
   "fmt"
   "html/template"
   "io"
+  "net/url"
   "strings"
   "time"
 )
@@ -16,6 +17,12 @@ func NewRenderer() (*Renderer, error) {
   funcMap := template.FuncMap{
     "eq": func(a, b any) bool { return a == b },
     "join": strings.Join,
+    "urlpath": func(value string) string {
+      return url.PathEscape(value)
+    },
+    "urlquery": func(value string) string {
+      return url.QueryEscape(value)
+    },
     "contains": func(list []string, value string) bool {
       for _, item := range list {
         if strings.EqualFold(item, value) {

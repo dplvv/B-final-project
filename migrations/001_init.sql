@@ -209,6 +209,7 @@ create table if not exists reward_redemptions (
   reward_id uuid references rewards(id) on delete cascade,
   status text not null default 'pending',
   redeemed_at timestamptz not null default now(),
+  handled_at timestamptz,
   approved_by uuid references users(id) on delete set null
 );
 
