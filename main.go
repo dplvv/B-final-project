@@ -53,6 +53,7 @@ func main() {
 	}
 
 	router.Handle("/assets/*", web.StaticHandler())
+	router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 	router.Mount("/", site.New(database, renderer, sessions, cfg).Router())
 
 	log.Printf("Server running on %s", cfg.Addr)

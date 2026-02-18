@@ -43,12 +43,49 @@
               <div class="card-title">{{ .Subject }}</div>
               <div class="muted">{{ .CreatedAt }}</div>
             </div>
-            <span class="badge">{{ .Status }}</span>
+            <span class="badge">{{ statusLabel .Status }}</span>
           </div>
-          <div class="muted">{{ .Message }}</div>
-          {{ if .Response }}
-            <div class="notice" style="margin-top: 10px;">Ответ: {{ .Response }}</div>
-          {{ end }}
+          <div class="ticket-thread">
+            {{ if .Messages }}
+              {{ range .Messages }}
+                <div class="ticket-message {{ if eq .SenderRole "admin" }}admin{{ else }}employee{{ end }}">
+                  <div class="ticket-meta">
+                    <span>{{ if .SenderName }}{{ .SenderName }}{{ else }}Поддержка{{ end }}</span>
+                    <span>·</span>
+                    <span>{{ .CreatedAt }}</span>
+                  </div>
+                  <div>{{ .Message }}</div>
+                </div>
+              {{ end }}
+            {{ else }}
+              <div class="ticket-message employee">
+                <div class="ticket-meta">
+                  <span>Вы</span>
+                  <span>·</span>
+                  <span>{{ .CreatedAt }}</span>
+                </div>
+                <div>{{ .Message }}</div>
+              </div>
+              {{ if .Response }}
+                <div class="ticket-message admin">
+                  <div class="ticket-meta">
+                    <span>Поддержка</span>
+                  </div>
+                  <div>{{ .Response }}</div>
+                </div>
+              {{ end }}
+            {{ end }}
+          </div>
+          <form class="form" method="post" action="/support/{{ .ID }}/messages" style="margin-top: 12px;">
+            <div class="form-group">
+              <label>Добавить сообщение</label>
+              <textarea name="message" rows="3" placeholder="Уточните детали или задайте новый вопрос" required></textarea>
+            </div>
+            <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+              <button class="button secondary" type="submit">Отправить сообщение</button>
+              <button class="button danger" type="submit" formnovalidate formaction="/support/{{ .ID }}/close">Проблема решена</button>
+            </div>
+          </form>
         </div>
       {{ else }}
         <div class="empty-state">

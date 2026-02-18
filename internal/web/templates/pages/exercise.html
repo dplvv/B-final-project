@@ -62,15 +62,15 @@
   </div>
   <div class="card">
     <div class="card-header">
-      <div class="card-title">Видео выполнения</div>
+      <div class="card-title">Фото выполнения</div>
     </div>
-    {{ if .Exercise.VideoURL }}
-      <div class="video-frame">
-        <iframe src="{{ .Exercise.VideoURL }}" title="Видео упражнения" frameborder="0" allowfullscreen></iframe>
+    {{ if .Exercise.ImageURL }}
+      <div class="exercise-media">
+        <img src="{{ .Exercise.ImageURL }}" alt="Фото упражнения {{ .Exercise.Name }}" />
       </div>
     {{ else }}
       <div class="empty-state">
-        <div class="empty-title">Видео пока не добавлено</div>
+        <div class="empty-title">Фото пока не добавлено</div>
         <div class="muted">Используйте описание и следите за техникой выполнения.</div>
       </div>
     {{ end }}

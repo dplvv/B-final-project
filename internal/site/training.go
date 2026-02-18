@@ -3,6 +3,7 @@ package site
 import (
   "database/sql"
   "encoding/json"
+  "math"
   "math/rand"
   "net/http"
   "sort"
@@ -51,6 +52,22 @@ type planWorkoutView struct {
   SessionID     string
 }
 
+type planCalendarDay struct {
+  ID            string
+  WorkoutID     string
+  Name          string
+  ScheduledDate string
+  Week          int
+  Day           int
+  Intensity     int
+  Status        string
+}
+
+type planCalendarWeek struct {
+  Week int
+  Days []planCalendarDay
+}
+
 type planChangeView struct {
   ChangedAt string
   Reason    string
@@ -61,6 +78,9 @@ type leaderboardRow struct {
   Department string
   Points     int
   Workouts   int
+  Minutes    int
+  LastWorkout string
+  AvgTolerance int
 }
 
 type achievementView struct {
@@ -97,6 +117,9 @@ func (s *Site) questionnairePage(w http.ResponseWriter, r *http.Request) {
   data["Questionnaire"] = q
   data["Errors"] = map[string]string{}
   data["Restrictions"] = restrictionOptions()
+  data["EquipmentOptions"] = equipmentOptions()
+  data["PreferenceOptions"] = preferenceOptions()
+  data["SelectedPreferences"] = parseCSV(q.Preferences)
   data["QuestionnaireComplete"] = !s.needsQuestionnaire(user.ID)
   data["EditMode"] = editMode
   data["ReturnTo"] = returnTo
@@ -118,12 +141,22 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
   previous, _ := s.loadQuestionnaire(user.ID)
   prevRestrictions := s.loadRestrictions(user.ID)
   if err := r.ParseForm(); err != nil {
-    http.Error(w, "bad request", http.StatusBadRequest)
+    http.Error(w, "Некорректный запрос", http.StatusBadRequest)
     return
   }
 
   days, _ := strconv.Atoi(r.FormValue("days_per_week"))
-  equipment := parseCSV(r.FormValue("equipment"))
+  equipment := r.Form["equipment"]
+  if len(equipment) == 1 && strings.TrimSpace(equipment[0]) == "" {
+    equipment = []string{}
+  }
+  equipment = normalizeEquipmentSelection(equipment)
+  preferences := ""
+  if prefs := r.Form["preferences"]; len(prefs) > 0 {
+    preferences = strings.Join(prefs, ", ")
+  } else {
+    preferences = strings.TrimSpace(r.FormValue("preferences"))
+  }
 
   q := questionnaireData{
     Goal:           strings.TrimSpace(r.FormValue("goal")),
@@ -131,7 +164,7 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
     DaysPerWeek:    days,
     SessionMinutes: 0,
     Equipment:      equipment,
-    Preferences:    strings.TrimSpace(r.FormValue("preferences")),
+    Preferences:    preferences,
   }
   q.SessionMinutes = sessionMinutesForLevel(resolveLevel(q.FitnessLevel))
 
@@ -141,6 +174,9 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
     data["Questionnaire"] = q
     data["Errors"] = errors
     data["Restrictions"] = restrictionOptions()
+    data["EquipmentOptions"] = equipmentOptions()
+    data["PreferenceOptions"] = preferenceOptions()
+    data["SelectedPreferences"] = parseCSV(q.Preferences)
     data["SelectedRestrictions"] = r.Form["restrictions"]
     data["DoctorApproval"] = s.loadDoctorApproval(user.ID)
     s.render(w, "questionnaire", data)
@@ -148,7 +184,7 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
   }
 
   if err := s.saveQuestionnaire(user.ID, q); err != nil {
-    http.Error(w, "save error", http.StatusInternalServerError)
+    http.Error(w, "Ошибка сохранения", http.StatusInternalServerError)
     return
   }
 
@@ -247,6 +283,7 @@ func (s *Site) planPage(w http.ResponseWriter, r *http.Request) {
   nextWorkout, _ := s.fetchNextPlanWorkout(user.ID)
   data["Plan"] = plan
   data["PlanWorkouts"] = workouts
+  data["PlanCalendar"] = buildPlanCalendar(workouts)
   data["NextWorkout"] = nextWorkout
   data["PlanPaused"] = plan.Status == "paused"
   data["PlanPausedReason"] = plan.PausedReason
@@ -295,7 +332,7 @@ func (s *Site) planWorkoutStart(w http.ResponseWriter, r *http.Request) {
   }
 
   if !s.planOwnedByUser(planID, user.ID) {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
 
@@ -356,7 +393,7 @@ func (s *Site) planWorkoutSkip(w http.ResponseWriter, r *http.Request) {
   }
 
   if !s.planOwnedByUser(planID, user.ID) {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
   if status == "completed" || status == "in_progress" {
@@ -396,7 +433,7 @@ func (s *Site) sessionFeedback(w http.ResponseWriter, r *http.Request) {
     return
   }
   if ownerID != user.ID {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
   if !completedAt.Valid {
@@ -441,42 +478,39 @@ func (s *Site) sessionFeedback(w http.ResponseWriter, r *http.Request) {
   http.Redirect(w, r, "/sessions/"+sessionID, http.StatusSeeOther)
 }
 
-func (s *Site) planHistory(w http.ResponseWriter, r *http.Request) {
-  user := middleware.UserFromContext(r.Context())
-  data := s.baseData(r, "История", "history")
-  plan, _ := s.getActivePlan(user.ID)
-
+func (s *Site) loadNotifications(userID string) []planChangeView {
   type historyEntry struct {
     When   time.Time
     Reason string
   }
   entries := []historyEntry{}
 
-  if plan != nil {
-    rows, err := s.DB.Query(
-      `select changed_at, reason from training_plan_changes
-       where plan_id = $1
-       order by changed_at desc`,
-      plan.ID,
-    )
-    if err == nil {
-      defer rows.Close()
-      for rows.Next() {
-        var changedAt time.Time
-        var reason string
-        _ = rows.Scan(&changedAt, &reason)
-        entries = append(entries, historyEntry{When: changedAt, Reason: reason})
-      }
+  var rows, err = s.DB.Query(
+    `select changed_at, reason
+     from training_plan_changes
+     where user_id = $1
+     order by changed_at desc
+     limit 10`,
+    userID,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var changedAt time.Time
+      var reason string
+      _ = rows.Scan(&changedAt, &reason)
+      entries = append(entries, historyEntry{When: changedAt, Reason: reason})
     }
   }
 
-  rows, err := s.DB.Query(
+  rows, err = s.DB.Query(
     `select rr.status, r.title, coalesce(rr.handled_at, rr.redeemed_at)
      from reward_redemptions rr
      join rewards r on r.id = rr.reward_id
      where rr.user_id = $1 and rr.status in ('approved', 'rejected')
-     order by coalesce(rr.handled_at, rr.redeemed_at) desc`,
-    user.ID,
+     order by coalesce(rr.handled_at, rr.redeemed_at) desc
+     limit 10`,
+    userID,
   )
   if err == nil {
     defer rows.Close()
@@ -499,38 +533,50 @@ func (s *Site) planHistory(w http.ResponseWriter, r *http.Request) {
     return entries[i].When.After(entries[j].When)
   })
 
-  changes := make([]planChangeView, 0, len(entries))
+  if len(entries) > 6 {
+    entries = entries[:6]
+  }
+  notifications := make([]planChangeView, 0, len(entries))
   for _, entry := range entries {
-    changes = append(changes, planChangeView{
+    notifications = append(notifications, planChangeView{
       ChangedAt: entry.When.Format("02.01.2006 15:04"),
       Reason:    entry.Reason,
     })
   }
-
-  if plan == nil && len(changes) == 0 {
-    data["HistoryEmpty"] = true
-  }
-  data["Changes"] = changes
-  s.render(w, "history", data)
+  return notifications
 }
 
 func (s *Site) leaderboard(w http.ResponseWriter, r *http.Request) {
   rows, err := s.DB.Query(
     `select u.name, coalesce(u.department, ''),
             coalesce(p.points_total, 0) as points,
-            coalesce(count(ws.id), 0) as workouts
+            coalesce(count(ws.id), 0) as workouts,
+            coalesce(sum(ws.duration_minutes), 0) as minutes,
+            coalesce(max(ws.completed_at), to_timestamp(0)) as last_workout,
+            coalesce(f.avg_tolerance, 0) as avg_tolerance
      from users u
      left join user_points p on p.user_id = u.id
      left join workout_sessions ws on ws.user_id = u.id and ws.completed_at is not null
-     group by u.id, p.points_total
-     order by points desc, workouts desc, u.name`,
+     left join (
+       select user_id, avg(coalesce(tolerance, 0)) as avg_tolerance
+       from workout_session_feedback
+       group by user_id
+     ) f on f.user_id = u.id
+     group by u.id, p.points_total, f.avg_tolerance
+     order by points desc, workouts desc, minutes desc, u.name`,
   )
   list := []leaderboardRow{}
   if err == nil {
     defer rows.Close()
     for rows.Next() {
       var row leaderboardRow
-      _ = rows.Scan(&row.Name, &row.Department, &row.Points, &row.Workouts)
+      var last time.Time
+      var avgTolerance float64
+      _ = rows.Scan(&row.Name, &row.Department, &row.Points, &row.Workouts, &row.Minutes, &last, &avgTolerance)
+      row.AvgTolerance = int(avgTolerance + 0.5)
+      if !last.IsZero() && last.Unix() > 0 {
+        row.LastWorkout = last.Format("02.01.2006")
+      }
       list = append(list, row)
     }
   }
@@ -680,20 +726,17 @@ func (s *Site) generatePlan(userID string) (*planRecord, error) {
   if frequency <= 0 {
     frequency = 3
   }
-  if frequency > 5 {
-    frequency = 5
+  if frequency > 7 {
+    frequency = 7
   }
   if !doctorApproval {
     level = "Легкая"
-    if frequency > 3 {
-      frequency = 3
-    }
   }
 
   goalCategories := categoriesForGoal(q.Goal)
   preferenceCategories := categoriesFromPreferences(q.Preferences)
   categories := mergeCategories(goalCategories, preferenceCategories)
-  availableEquipment := q.Equipment
+  availableEquipment := normalizeEquipmentSelection(q.Equipment)
   if len(availableEquipment) == 0 && !prefersNoEquipment(q.Preferences) {
     availableEquipment = []string{"Коврик"}
   }
@@ -749,23 +792,23 @@ func (s *Site) generatePlan(userID string) (*planRecord, error) {
 
   start := nextWeekStart(time.Now())
   weeks := 4
-  interval := 7 / frequency
-  if interval < 1 {
-    interval = 1
+  offsets := weeklyOffsets(frequency)
+  if len(offsets) == 0 {
+    offsets = []int{0}
   }
 
   for week := 1; week <= weeks; week++ {
     weekList := rotateWorkouts(workouts, week-1)
-    for day := 1; day <= frequency; day++ {
-      workout := weekList[(day-1)%len(weekList)]
-      scheduled := start.AddDate(0, 0, (week-1)*7+(day-1)*interval)
+    for idx, offset := range offsets {
+      workout := weekList[idx%len(weekList)]
+      scheduled := start.AddDate(0, 0, (week-1)*7+offset)
       _, _ = s.DB.Exec(
         `insert into training_plan_workouts (plan_id, workout_id, week, day, scheduled_date, intensity)
          values ($1, $2, $3, $4, $5, 1)`,
         planID,
         workout.ID,
         week,
-        day,
+        idx+1,
         scheduled,
       )
     }
@@ -810,6 +853,37 @@ func (s *Site) fetchPlanWorkouts(planID string) []planWorkoutView {
     list = append(list, v)
   }
   return list
+}
+
+func buildPlanCalendar(items []planWorkoutView) []planCalendarWeek {
+  weeks := map[int][]planCalendarDay{}
+  order := []int{}
+  for _, item := range items {
+    if _, ok := weeks[item.Week]; !ok {
+      order = append(order, item.Week)
+    }
+    weeks[item.Week] = append(weeks[item.Week], planCalendarDay{
+      ID:            item.ID,
+      WorkoutID:     item.WorkoutID,
+      Name:          item.Name,
+      ScheduledDate: item.ScheduledDate,
+      Week:          item.Week,
+      Day:           item.Day,
+      Intensity:     item.Intensity,
+      Status:        item.Status,
+    })
+  }
+  sort.Ints(order)
+  calendar := []planCalendarWeek{}
+  for _, week := range order {
+    days := weeks[week]
+    sort.Slice(days, func(i, j int) bool { return days[i].Day < days[j].Day })
+    calendar = append(calendar, planCalendarWeek{
+      Week: week,
+      Days: days,
+    })
+  }
+  return calendar
 }
 
 func (s *Site) fetchNextPlanWorkout(userID string) (*planWorkoutView, error) {
@@ -920,20 +994,39 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
     return
   }
 
+  var lastChange time.Time
+  _ = s.DB.QueryRow(
+    `select coalesce(max(changed_at), to_timestamp(0))
+     from training_plan_changes
+     where plan_id = $1 and reason_code in ('progression', 'regression', 'warning', 'missed')`,
+    planID,
+  ).Scan(&lastChange)
+  if trigger == "feedback" && time.Since(lastChange) < 7*24*time.Hour {
+    return
+  }
+
   before := s.planSnapshot(planID)
 
-  painCritical := false
-  painModerate := false
-  toleranceLow := false
-  goodTolerance := false
-  wellbeingLow := false
+  type feedbackSnapshot struct {
+    Pain      int
+    Tolerance int
+    Exertion  int
+    Wellbeing int
+  }
+
+  samples := 0
+  sumPain := 0
+  sumTolerance := 0
+  sumExertion := 0
+  sumWellbeing := 0
+  last := feedbackSnapshot{}
 
   rows, err := s.DB.Query(
     `select coalesce(pain_level, 0), coalesce(tolerance, 0), coalesce(perceived_exertion, 0), coalesce(wellbeing, 0)
      from workout_session_feedback
      where user_id = $1
      order by created_at desc
-     limit 3`,
+     limit 4`,
     userID,
   )
   if err == nil {
@@ -941,26 +1034,28 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
     for rows.Next() {
       var pain, tolerance, exertion, wellbeing int
       _ = rows.Scan(&pain, &tolerance, &exertion, &wellbeing)
-      if pain >= 4 {
-        painCritical = true
+      if samples == 0 {
+        last = feedbackSnapshot{Pain: pain, Tolerance: tolerance, Exertion: exertion, Wellbeing: wellbeing}
       }
-      if pain >= 3 {
-        painModerate = true
-      }
-      if wellbeing > 0 && wellbeing <= 2 {
-        wellbeingLow = true
-      }
-      if tolerance > 0 && tolerance <= 2 {
-        toleranceLow = true
-      }
-      if tolerance >= 4 && pain == 0 && wellbeing >= 4 {
-        goodTolerance = true
-      }
-      if exertion >= 5 {
-        toleranceLow = true
-      }
+      samples++
+      sumPain += pain
+      sumTolerance += tolerance
+      sumExertion += exertion
+      sumWellbeing += wellbeing
     }
   }
+
+  if samples == 0 {
+    return
+  }
+  if trigger == "feedback" && samples < 2 {
+    return
+  }
+
+  avgPain := float64(sumPain) / float64(samples)
+  avgTolerance := float64(sumTolerance) / float64(samples)
+  avgExertion := float64(sumExertion) / float64(samples)
+  avgWellbeing := float64(sumWellbeing) / float64(samples)
 
   var skipped int
   _ = s.DB.QueryRow(
@@ -972,19 +1067,7 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
   reasonCode := ""
   reason := ""
 
-  if painCritical || (painModerate && wellbeingLow) {
-    reasonCode = "warning"
-    reason = "Отмечен дискомфорт: снижена интенсивность и рекомендована консультация"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
-  } else if toleranceLow || wellbeingLow {
-    reasonCode = "regression"
-    reason = "Низкая переносимость нагрузки: снижена интенсивность"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
-  } else if goodTolerance && skipped == 0 {
-    reasonCode = "progression"
-    reason = "Хорошая переносимость: повышена интенсивность"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = least(intensity + 1, 3) where plan_id = $1 and status = 'pending'`, planID)
-  } else if skipped >= 2 {
+  if skipped >= 2 {
     reasonCode = "missed"
     reason = "Есть пропуски: план перераспределён"
     _, _ = s.DB.Exec(
@@ -993,6 +1076,18 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
        where plan_id = $1 and status = 'pending' and scheduled_date is not null`,
       planID,
     )
+  } else if last.Pain >= 4 || avgPain >= 3.5 || (avgPain >= 3 && avgWellbeing <= 2.5) {
+    reasonCode = "warning"
+    reason = "Отмечен дискомфорт: снижена интенсивность и рекомендована консультация"
+    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
+  } else if last.Tolerance <= 2 || avgTolerance <= 2.5 || avgWellbeing <= 2.5 || avgExertion >= 4 {
+    reasonCode = "regression"
+    reason = "Низкая переносимость нагрузки: снижена интенсивность"
+    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
+  } else if avgTolerance >= 4 && avgWellbeing >= 4 && avgPain <= 1.5 && avgExertion <= 3 && last.Tolerance >= 4 && last.Pain <= 1 && skipped == 0 {
+    reasonCode = "progression"
+    reason = "Хорошая переносимость: повышена интенсивность"
+    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = least(intensity + 1, 3) where plan_id = $1 and status = 'pending'`, planID)
   }
 
   if reasonCode != "" {
@@ -1103,8 +1198,30 @@ func categoriesFromPreferences(preferences string) []string {
     "стабил": "Кор",
   }
   out := []string{}
+  seen := map[string]bool{}
+  for _, item := range parseCSV(preferences) {
+    cleaned := strings.TrimSpace(item)
+    if cleaned == "" {
+      continue
+    }
+    key := strings.ToLower(cleaned)
+    if category, ok := mapping[key]; ok {
+      if !seen[category] {
+        seen[category] = true
+        out = append(out, category)
+      }
+      continue
+    }
+    for matchKey, category := range mapping {
+      if strings.Contains(key, matchKey) && !seen[category] {
+        seen[category] = true
+        out = append(out, category)
+      }
+    }
+  }
   for key, category := range mapping {
-    if strings.Contains(text, key) {
+    if strings.Contains(text, key) && !seen[category] {
+      seen[category] = true
       out = append(out, category)
     }
   }
@@ -1240,6 +1357,87 @@ func restrictionOptions() []string {
   return []string{"Колени", "Спина", "Плечи", "Сердце", "Растяжка"}
 }
 
+func equipmentOptions() []string {
+  return []string{
+    "Без инвентаря",
+    "Коврик",
+    "Резинка",
+    "Гантели",
+    "Стул",
+    "Фитбол",
+  }
+}
+
+func preferenceOptions() []string {
+  return []string{
+    "Растяжка",
+    "Мобилизация",
+    "Кардио",
+    "Кор",
+    "Спина",
+    "Ноги",
+    "Плечи",
+  }
+}
+
+func normalizeEquipmentSelection(list []string) []string {
+  cleaned := []string{}
+  for _, item := range list {
+    value := strings.TrimSpace(item)
+    if value == "" {
+      continue
+    }
+    lower := strings.ToLower(value)
+    if strings.Contains(lower, "без инвентар") || strings.Contains(lower, "без оборуд") {
+      return []string{}
+    }
+    cleaned = append(cleaned, value)
+  }
+  return cleaned
+}
+
+func weeklyOffsets(frequency int) []int {
+  switch frequency {
+  case 1:
+    return []int{2}
+  case 2:
+    return []int{1, 4}
+  case 3:
+    return []int{0, 2, 4}
+  case 4:
+    return []int{0, 2, 4, 6}
+  case 5:
+    return []int{0, 1, 3, 5, 6}
+  case 6:
+    return []int{0, 1, 2, 4, 5, 6}
+  case 7:
+    return []int{0, 1, 2, 3, 4, 5, 6}
+  default:
+    if frequency <= 0 {
+      return []int{}
+    }
+    offsets := []int{}
+    step := float64(7) / float64(frequency)
+    used := map[int]bool{}
+    for i := 0; i < frequency; i++ {
+      raw := int(math.Round(float64(i) * step))
+      if raw < 0 {
+        raw = 0
+      }
+      if raw > 6 {
+        raw = 6
+      }
+      for used[raw] && raw < 6 {
+        raw++
+      }
+      used[raw] = true
+      offsets = append(offsets, raw)
+    }
+    sort.Ints(offsets)
+    return offsets
+  }
+}
+
 func restrictionCategories(restrictions []string) map[string]bool {
   out := map[string]bool{}
   mapping := map[string][]string{
@@ -1316,7 +1514,7 @@ func (s *Site) planIDBySession(sessionID string) string {
 }
 
 func (s *Site) updateAchievements(userID string) {
-  rows, err := s.DB.Query(`select id, title, points_reward from achievements`)
+  rows, err := s.DB.Query(`select id, title, points_reward, coalesce(metric, ''), coalesce(target, 0) from achievements`)
   if err != nil {
     return
   }
@@ -1326,11 +1524,13 @@ func (s *Site) updateAchievements(userID string) {
     ID    string
     Title string
     PointsReward int
+    Metric string
+    Target int
   }
   list := []ach{}
   for rows.Next() {
     var a ach
-    _ = rows.Scan(&a.ID, &a.Title, &a.PointsReward)
+    _ = rows.Scan(&a.ID, &a.Title, &a.PointsReward, &a.Metric, &a.Target)
     list = append(list, a)
   }
 
@@ -1355,35 +1555,63 @@ func (s *Site) updateAchievements(userID string) {
 
   for _, a := range list {
     progress := 0
-    target := 1
-    switch a.Title {
-    case "Первый шаг":
-      progress = total
+    target := a.Target
+    metric := strings.ToLower(strings.TrimSpace(a.Metric))
+    if target <= 0 {
       target = 1
-    case "Первые три":
+    }
+    switch metric {
+    case "total":
       progress = total
-      target = 3
-    case "Серия":
+    case "streak":
       progress = streak
-      target = 5
-    case "Железная воля":
-      progress = streak
-      target = 10
-    case "Настойчивость":
+    case "month":
       progress = last30
-      target = 10
-    case "Регулярность":
-      progress = last30
-      target = 8
-    case "Месяц активности":
-      progress = last30
-      target = 20
-    case "Марафон":
-      progress = total
-      target = 25
     default:
-      progress = total
-      target = 1
+      switch a.Title {
+      case "Первый шаг":
+        progress = total
+        target = 1
+      case "Первые три":
+        progress = total
+        target = 3
+      case "Пять тренировок":
+        progress = total
+        target = 5
+      case "Серия":
+        progress = streak
+        target = 5
+      case "Неделя подряд":
+        progress = streak
+        target = 7
+      case "Железная воля":
+        progress = streak
+        target = 10
+      case "Активные 2 недели":
+        progress = streak
+        target = 14
+      case "Настойчивость":
+        progress = last30
+        target = 10
+      case "12 тренировок за месяц":
+        progress = last30
+        target = 12
+      case "Регулярность":
+        progress = last30
+        target = 8
+      case "Месяц активности":
+        progress = last30
+        target = 20
+      case "15 тренировок":
+        progress = total
+        target = 15
+      case "Марафон":
+        progress = total
+        target = 25
+      default:
+        progress = total
+        target = 1
+      }
     }
 
     unlocked := progress >= target
@@ -1503,20 +1731,4 @@ func (s *Site) createWorkoutSession(userID, workoutID, planWorkoutID string) (st
   }
 
   return sessionID, nil
-}
-
-func (s *Site) sortLeaderboard(list []leaderboardRow) {
-  sort.Slice(list, func(i, j int) bool {
-    if list[i].Points == list[j].Points {
-      if list[i].Workouts == list[j].Workouts {
-        return list[i].Name < list[j].Name
-      }
-      return list[i].Workouts > list[j].Workouts
-    }
-    return list[i].Points > list[j].Points
-  })
-}
-
-func (s *Site) resetPlanStatus(planID string) {
-  _, _ = s.DB.Exec(`update training_plans set status = 'active', paused_reason = null where id = $1`, planID)
 }

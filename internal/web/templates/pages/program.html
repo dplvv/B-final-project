@@ -6,7 +6,6 @@
   </div>
   <div style="display:flex; gap:12px; flex-wrap: wrap;">
     {{ if not .SetupIncomplete }}
-      <a class="button secondary" href="/history">История изменений</a>
       <form method="post" action="/plan/regenerate">
         <button class="button primary" type="submit">Пересобрать план</button>
       </form>
@@ -101,30 +100,10 @@
         {{ if .PlanPaused }}<div class="muted">План приостановлен</div>{{ end }}
       </div>
       <div style="margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap;">
-        <a class="button secondary" href="/history">История</a>
         <form method="post" action="/plan/regenerate">
           <button class="button secondary" type="submit">Пересобрать</button>
         </form>
       </div>
-    </div>
-  </div>
-
-  <div class="grid cols-3" style="margin-bottom: 24px;">
-    <div class="card">
-      <div class="card-title">Цель</div>
-      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Goal }}</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Уровень</div>
-      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Level }}</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Частота</div>
-      <div style="margin-top: 8px; font-weight: 600;">{{ .Plan.Frequency }} тренировок в неделю</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Старт плана</div>
-      <div style="margin-top: 8px; font-weight: 600;">{{ formatDate .Plan.CreatedAt }}</div>
     </div>
   </div>
 
@@ -169,6 +148,37 @@
     </ul>
   </div>
 {{ end }}
+
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <div class="card-title">Календарь плана</div>
+    <span class="badge">4 недели</span>
+  </div>
+  <div class="calendar-grid">
+    {{ range .PlanCalendar }}
+      <div class="calendar-week">
+        <div class="calendar-week-title">Неделя {{ .Week }}</div>
+        <div class="calendar-days">
+          {{ range .Days }}
+            <div class="calendar-day">
+              <div class="calendar-date">{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}По плану{{ end }}</div>
+              <div class="calendar-name">{{ .Name }}</div>
+              <div class="calendar-meta">
+                <span class="badge">Инт. {{ .Intensity }}</span>
+                <span class="badge">{{ statusLabel .Status }}</span>
+              </div>
+            </div>
+          {{ end }}
+        </div>
+      </div>
+    {{ else }}
+      <div class="empty-state">
+        <div class="empty-title">Календарь пока пуст</div>
+        <div class="muted">Пересоберите план или заполните анкету.</div>
+      </div>
+    {{ end }}
+  </div>
+</div>
 
 <div class="card">
   <div class="card-header">

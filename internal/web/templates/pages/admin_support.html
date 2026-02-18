@@ -15,20 +15,46 @@
           <div class="card-title">{{ .Subject }}</div>
           <div class="muted">{{ .EmployeeName }} · {{ .CreatedAt }}</div>
         </div>
-        <span class="badge">{{ .Status }}</span>
+        <span class="badge">{{ statusLabel .Status }}</span>
       </div>
-      <p class="muted">{{ .Message }}</p>
-      {{ if .Response }}
-        <div class="notice" style="margin-top: 12px;">Ответ: {{ .Response }}</div>
-      {{ else }}
-        <form class="form" method="post" action="/admin/support/{{ .ID }}/respond" style="margin-top: 12px;">
-          <div class="form-group">
-            <label>Ответ</label>
-            <textarea name="response" rows="3" required></textarea>
+      <div class="ticket-thread">
+        {{ if .Messages }}
+          {{ range .Messages }}
+            <div class="ticket-message {{ if eq .SenderRole "admin" }}admin{{ else }}employee{{ end }}">
+              <div class="ticket-meta">
+                <span>{{ if .SenderName }}{{ .SenderName }}{{ else }}Поддержка{{ end }}</span>
+                <span>·</span>
+                <span>{{ .CreatedAt }}</span>
+              </div>
+              <div>{{ .Message }}</div>
+            </div>
+          {{ end }}
+        {{ else }}
+          <div class="ticket-message employee">
+            <div class="ticket-meta">
+              <span>{{ .EmployeeName }}</span>
+              <span>·</span>
+              <span>{{ .CreatedAt }}</span>
+            </div>
+            <div>{{ .Message }}</div>
           </div>
-          <button class="button primary" type="submit">Отправить ответ</button>
-        </form>
-      {{ end }}
+          {{ if .Response }}
+            <div class="ticket-message admin">
+              <div class="ticket-meta">
+                <span>Поддержка</span>
+              </div>
+              <div>{{ .Response }}</div>
+            </div>
+          {{ end }}
+        {{ end }}
+      </div>
+      <form class="form" method="post" action="/admin/support/{{ .ID }}/respond" style="margin-top: 12px;">
+        <div class="form-group">
+          <label>Ответ</label>
+          <textarea name="response" rows="3" required></textarea>
+        </div>
+        <button class="button primary" type="submit">Отправить ответ</button>
+      </form>
     </div>
   {{ else }}
     <div class="card">

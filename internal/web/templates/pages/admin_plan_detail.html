@@ -24,7 +24,7 @@
         <div><strong>Цель:</strong> {{ .Plan.Goal }}</div>
         <div><strong>Уровень:</strong> {{ .Plan.Level }}</div>
         <div><strong>Частота:</strong> {{ .Plan.Frequency }} раз/нед</div>
-        <div><strong>Статус:</strong> {{ .Plan.Status }}</div>
+        <div><strong>Статус:</strong> {{ statusLabel .Plan.Status }}</div>
       </div>
       <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
         <form method="post" action="/admin/plans/{{ .UserID }}/regenerate">
@@ -67,7 +67,7 @@
           <tr>
             <td>Неделя {{ .Week }}, день {{ .Day }}</td>
             <td>{{ .Name }}</td>
-            <td>{{ .Status }}</td>
+            <td>{{ statusLabel .Status }}</td>
             <td>
               <form method="post" action="/admin/plans/{{ $.UserID }}/workouts/{{ .ID }}/replace" class="inline-form">
                 <select name="workout_id" required>

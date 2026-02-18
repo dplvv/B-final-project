@@ -26,7 +26,8 @@ func RunMigrations(db *sql.DB, dir string) error {
   }
 
   for _, file := range files {
-    if applied[file] {
+    alreadyApplied := applied[file]
+    if alreadyApplied && file != "001_init.sql" {
       continue
     }
 
@@ -44,8 +45,10 @@ func RunMigrations(db *sql.DB, dir string) error {
       return fmt.Errorf("apply migration %s: %w", file, err)
     }
 
-    if _, err := db.Exec("insert into schema_migrations (filename) values ($1)", file); err != nil {
-      return fmt.Errorf("record migration %s: %w", file, err)
+    if !alreadyApplied {
+      if _, err := db.Exec("insert into schema_migrations (filename) values ($1)", file); err != nil {
+        return fmt.Errorf("record migration %s: %w", file, err)
+      }
     }
   }
 

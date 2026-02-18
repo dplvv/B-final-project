@@ -24,7 +24,7 @@ func (s *Site) rewardsPage(w http.ResponseWriter, r *http.Request) {
   _ = s.DB.QueryRow(`select coalesce(points_balance, 0) from user_points where user_id = $1`, user.ID).Scan(&points)
   data["Points"] = points
 
-  rows, err := s.DB.Query(
+  var rows, err = s.DB.Query(
     `select id, title, description, points_cost, coalesce(category, '')
      from rewards
      where active = true
@@ -111,7 +111,7 @@ func (s *Site) supportPage(w http.ResponseWriter, r *http.Request) {
   data["Success"] = r.URL.Query().Get("success")
   data["Error"] = r.URL.Query().Get("error")
 
-  rows, err := s.DB.Query(
+  var rows, err = s.DB.Query(
     `select id, subject, message, status, coalesce(response, ''), created_at
      from support_tickets
      where user_id = $1
@@ -126,11 +126,37 @@ func (s *Site) supportPage(w http.ResponseWriter, r *http.Request) {
       var created time.Time
       _ = rows.Scan(&t.ID, &t.Subject, &t.Message, &t.Status, &t.Response, &created)
       t.CreatedAt = created.Format("02.01.2006 15:04")
+      t.Messages = s.loadSupportMessages(t.ID)
       tickets = append(tickets, t)
     }
   }
   data["Tickets"] = tickets
   s.render(w, "support", data)
+}
+
+func (s *Site) loadSupportMessages(ticketID string) []supportMessageView {
+  rows, err := s.DB.Query(
+    `select coalesce(u.name, ''), m.sender_role, m.message, m.created_at
+     from support_ticket_messages m
+     left join users u on u.id = m.sender_id
+     where m.ticket_id = $1
+     order by m.created_at`,
+    ticketID,
+  )
+  if err != nil {
+    return nil
+  }
+  defer rows.Close()
+
+  messages := []supportMessageView{}
+  for rows.Next() {
+    var msg supportMessageView
+    var created time.Time
+    _ = rows.Scan(&msg.SenderName, &msg.SenderRole, &msg.Message, &created)
+    msg.CreatedAt = created.Format("02.01.2006 15:04")
+    messages = append(messages, msg)
+  }
+  return messages
 }
 
 func (s *Site) supportSubmit(w http.ResponseWriter, r *http.Request) {
@@ -146,20 +172,100 @@ func (s *Site) supportSubmit(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  _, _ = s.DB.Exec(
+  var ticketID string
+  _ = s.DB.QueryRow(
     `insert into support_tickets (user_id, category, subject, message)
-     values ($1, 'general', $2, $3)`,
+     values ($1, 'general', $2, $3)
+     returning id`,
     user.ID,
     subject,
     message,
-  )
+  ).Scan(&ticketID)
+  if ticketID != "" {
+    _, _ = s.DB.Exec(
+      `insert into support_ticket_messages (ticket_id, sender_id, sender_role, message)
+       values ($1, $2, 'employee', $3)`,
+      ticketID,
+      user.ID,
+      message,
+    )
+  }
 
   http.Redirect(w, r, "/support?success=Обращение%20отправлено", http.StatusSeeOther)
+}
+
+func (s *Site) supportMessageSubmit(w http.ResponseWriter, r *http.Request) {
+  user := middleware.UserFromContext(r.Context())
+  ticketID := chi.URLParam(r, "id")
+  if ticketID == "" {
+    http.Redirect(w, r, "/support", http.StatusSeeOther)
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/support", http.StatusSeeOther)
+    return
+  }
+  message := strings.TrimSpace(r.FormValue("message"))
+  if message == "" {
+    http.Redirect(w, r, "/support?error=Заполните%20сообщение", http.StatusSeeOther)
+    return
+  }
+
+  var ownerID string
+  _ = s.DB.QueryRow(`select user_id from support_tickets where id = $1`, ticketID).Scan(&ownerID)
+  if ownerID != user.ID {
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
+    return
+  }
+
+  _, _ = s.DB.Exec(
+    `insert into support_ticket_messages (ticket_id, sender_id, sender_role, message)
+     values ($1, $2, 'employee', $3)`,
+    ticketID,
+    user.ID,
+    message,
+  )
+  _, _ = s.DB.Exec(`update support_tickets set status = 'open', updated_at = now() where id = $1`, ticketID)
+  http.Redirect(w, r, "/support?success=Сообщение%20добавлено", http.StatusSeeOther)
+}
+
+func (s *Site) supportClose(w http.ResponseWriter, r *http.Request) {
+  user := middleware.UserFromContext(r.Context())
+  ticketID := chi.URLParam(r, "id")
+  if ticketID == "" {
+    http.Redirect(w, r, "/support", http.StatusSeeOther)
+    return
+  }
+
+  var ownerID string
+  err := s.DB.QueryRow(`select user_id from support_tickets where id = $1`, ticketID).Scan(&ownerID)
+  if err != nil {
+    http.Redirect(w, r, "/support?error=Обращение%20не%20найдено", http.StatusSeeOther)
+    return
+  }
+  if ownerID != user.ID {
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
+    return
+  }
+
+  _, _ = s.DB.Exec(`update support_tickets set status = 'closed', updated_at = now() where id = $1`, ticketID)
+  _, _ = s.DB.Exec(
+    `insert into support_ticket_messages (ticket_id, sender_id, sender_role, message)
+     values ($1, $2, 'employee', $3)`,
+    ticketID,
+    user.ID,
+    "Проблема решена",
+  )
+  http.Redirect(w, r, "/support?success=Обращение%20закрыто", http.StatusSeeOther)
 }
 
 func (s *Site) managerDashboard(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
   data := s.baseData(r, "Руководитель", "manager")
+  period := normalizeTrendPeriod(r.URL.Query().Get("period"))
+  trendConfig, _ := trendPeriodConfig(period, time.Now())
+  data["TrendPeriod"] = period
+  data["TrendBadge"] = trendConfig.Badge
 
   department := strings.TrimSpace(user.Department)
   query := `select u.id, u.name, u.employee_id, coalesce(u.department, ''), coalesce(u.position, ''), coalesce(p.points_balance, 0)
@@ -232,6 +338,8 @@ func (s *Site) managerDashboard(w http.ResponseWriter, r *http.Request) {
     }
   }
   data["Redemptions"] = redemptions
+  data["DepartmentTimeTrend"] = s.loadDepartmentTrendPeriod(department, period)
+  data["DepartmentEmployeeTrend"] = s.loadEmployeeTrend(department, period)
 
   s.render(w, "manager", data)
 }
@@ -255,7 +363,7 @@ func (s *Site) managerEmployee(w http.ResponseWriter, r *http.Request) {
     return
   }
   if user.Role == "manager" && user.Department != "" && !strings.EqualFold(user.Department, employee.Department) {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
 
@@ -331,7 +439,7 @@ func (s *Site) managerAward(w http.ResponseWriter, r *http.Request) {
     var dept string
     _ = s.DB.QueryRow(`select coalesce(department, '') from users where id = $1`, employeeID).Scan(&dept)
     if !strings.EqualFold(dept, user.Department) {
-      http.Error(w, "forbidden", http.StatusForbidden)
+      http.Error(w, "Доступ запрещён", http.StatusForbidden)
       return
     }
   }
@@ -366,7 +474,7 @@ func (s *Site) managerRedemptionApprove(w http.ResponseWriter, r *http.Request) 
   }
 
   if !s.managerRedemptionAllowed(user, redemptionID) {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
 
@@ -404,7 +512,7 @@ func (s *Site) managerRedemptionReject(w http.ResponseWriter, r *http.Request) {
     var dept string
     _ = s.DB.QueryRow(`select coalesce(department, '') from users where id = $1`, userID).Scan(&dept)
     if !strings.EqualFold(dept, user.Department) {
-      http.Error(w, "forbidden", http.StatusForbidden)
+      http.Error(w, "Доступ запрещён", http.StatusForbidden)
       return
     }
   }
@@ -427,6 +535,10 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
   data := s.baseData(r, "Администрирование", "admin")
   data["Success"] = r.URL.Query().Get("success")
   data["Error"] = r.URL.Query().Get("error")
+  period := normalizeTrendPeriod(r.URL.Query().Get("period"))
+  trendConfig, _ := trendPeriodConfig(period, time.Now())
+  data["TrendPeriod"] = period
+  data["TrendBadge"] = trendConfig.Badge
 
   var usersCount int
   _ = s.DB.QueryRow(`select count(*) from users`).Scan(&usersCount)
@@ -445,8 +557,88 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
     "Content": programs + workouts,
     "Pending": pendingResets + pendingSupport + pendingRewards,
   }
+  data["AdminTimeTrend"] = s.loadDepartmentTrendPeriod("", period)
+  data["AdminEmployeeTrend"] = s.loadEmployeeTrend("", period)
 
+  topWorkouts := []analyticsItem{}
   rows, err := s.DB.Query(
+    `select w.name, count(ws.id)
+     from workout_sessions ws
+     join workouts w on w.id = ws.workout_id
+     where ws.completed_at is not null
+     group by w.name
+     order by count(ws.id) desc
+     limit 5`,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var item analyticsItem
+      _ = rows.Scan(&item.Name, &item.Count)
+      topWorkouts = append(topWorkouts, item)
+    }
+  }
+
+  topExercises := []analyticsItem{}
+  rows, err = s.DB.Query(
+    `select e.name, count(wse.id)
+     from workout_session_exercises wse
+     join workout_sessions ws on ws.id = wse.session_id
+     join exercises e on e.id = wse.exercise_id
+     where ws.completed_at is not null
+     group by e.name
+     order by count(wse.id) desc
+     limit 5`,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var item analyticsItem
+      _ = rows.Scan(&item.Name, &item.Count)
+      topExercises = append(topExercises, item)
+    }
+  }
+  data["TopWorkouts"] = topWorkouts
+  data["TopExercises"] = topExercises
+
+  programAnalytics := []programAnalyticsView{}
+  rows, err = s.DB.Query(
+    `select p.name, count(pw.workout_id), coalesce(sum(w.duration_minutes), 0)
+     from programs p
+     left join program_workouts pw on pw.program_id = p.id
+     left join workouts w on w.id = pw.workout_id
+     group by p.id, p.name
+     order by count(pw.workout_id) desc, p.name
+     limit 6`,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var item programAnalyticsView
+      _ = rows.Scan(&item.Name, &item.Workouts, &item.Minutes)
+      programAnalytics = append(programAnalytics, item)
+    }
+  }
+  data["ProgramAnalytics"] = programAnalytics
+
+  intensityStats := []intensityStat{}
+  rows, err = s.DB.Query(
+    `select intensity, count(*)
+     from training_plan_workouts
+     group by intensity
+     order by intensity`,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var stat intensityStat
+      _ = rows.Scan(&stat.Level, &stat.Count)
+      intensityStats = append(intensityStats, stat)
+    }
+  }
+  data["IntensityStats"] = intensityStats
+
+  rows, err = s.DB.Query(
     `select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
             coalesce(mi.doctor_approval, false)
      from users u
@@ -700,6 +892,7 @@ func (s *Site) adminSupport(w http.ResponseWriter, r *http.Request) {
       var created time.Time
       _ = rows.Scan(&t.ID, &t.EmployeeName, &t.Subject, &t.Message, &t.Status, &t.Response, &created)
       t.CreatedAt = created.Format("02.01.2006 15:04")
+      t.Messages = s.loadSupportMessages(t.ID)
       tickets = append(tickets, t)
     }
   }
@@ -708,6 +901,7 @@ func (s *Site) adminSupport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) adminSupportRespond(w http.ResponseWriter, r *http.Request) {
+  admin := middleware.UserFromContext(r.Context())
   ticketID := chi.URLParam(r, "id")
   if ticketID == "" {
     http.Redirect(w, r, "/admin/support", http.StatusSeeOther)
@@ -723,8 +917,17 @@ func (s *Site) adminSupportRespond(w http.ResponseWriter, r *http.Request) {
     return
   }
 
+  if admin != nil {
+    _, _ = s.DB.Exec(
+    `insert into support_ticket_messages (ticket_id, sender_id, sender_role, message)
+     values ($1, $2, 'admin', $3)`,
+    ticketID,
+    admin.ID,
+    response,
+  )
+  }
   _, _ = s.DB.Exec(
-    `update support_tickets set response = $1, status = 'closed', updated_at = now() where id = $2`,
+    `update support_tickets set response = $1, status = 'open', updated_at = now() where id = $2`,
     response,
     ticketID,
   )

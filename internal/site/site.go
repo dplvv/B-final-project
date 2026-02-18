@@ -51,7 +51,7 @@ type exerciseCard struct {
   Duration    int
   MuscleGroups []string
   Equipment   []string
-  VideoURL    string
+  ImageURL    string
 }
 
 type programCard struct {
@@ -74,13 +74,17 @@ type sessionExercise struct {
   Rest          int
   CompletedSets int
   Completed     bool
+  SetDurations  []int
+  TotalSeconds  int
 }
 
 type sessionView struct {
   ID              string
   WorkoutName     string
   StartedAt       string
+  CompletedAt     string
   DurationMinutes int
+  TotalSeconds    int
   ProgressPercent int
   CurrentSet      int
   CurrentExercise *sessionExercise
@@ -94,6 +98,30 @@ type dashboardStats struct {
   Minutes            int
   Points             int
   AchievementPercent int
+}
+
+type trendPoint struct {
+  Label            string
+  Workouts         int
+  WorkoutsPercent  int
+  Tolerance        int
+  TolerancePercent int
+}
+
+type analyticsItem struct {
+  Name  string
+  Count int
+}
+
+type programAnalyticsView struct {
+  Name     string
+  Workouts int
+  Minutes  int
+}
+
+type intensityStat struct {
+  Level int
+  Count int
 }
 
 type profileView struct {
@@ -113,6 +141,14 @@ type supportTicketView struct {
   Response  string
   EmployeeName string
   EmployeeID   string
+  Messages  []supportMessageView
+}
+
+type supportMessageView struct {
+  SenderName string
+  SenderRole string
+  Message    string
+  CreatedAt  string
 }
 
 type rewardView struct {
@@ -121,6 +157,7 @@ type rewardView struct {
   Description string
   PointsCost  int
   Category    string
+  Active      bool
 }
 
 type managerEmployeeView struct {
@@ -210,13 +247,14 @@ func (s *Site) Router() chi.Router {
     pr.Post("/sessions/{id}/feedback", s.sessionFeedback)
     pr.Get("/exercises", s.exercises)
     pr.Get("/exercises/{id}", s.exerciseDetail)
-    pr.Get("/history", s.planHistory)
     pr.Get("/leaderboard", s.leaderboard)
     pr.Get("/achievements", s.achievementsPage)
     pr.Get("/rewards", s.rewardsPage)
     pr.Post("/rewards/{id}/redeem", s.rewardRedeem)
     pr.Get("/support", s.supportPage)
     pr.Post("/support", s.supportSubmit)
+    pr.Post("/support/{id}/messages", s.supportMessageSubmit)
+    pr.Post("/support/{id}/close", s.supportClose)
     pr.Get("/profile", s.profile)
     pr.Post("/profile", s.profileUpdate)
 
@@ -235,11 +273,20 @@ func (s *Site) Router() chi.Router {
       ar.Get("/exercises", s.adminExercises)
       ar.Post("/exercises", s.adminExerciseCreate)
       ar.Post("/exercises/{id}/update", s.adminExerciseUpdate)
+      ar.Post("/exercises/{id}/image/delete", s.adminExerciseImageDelete)
+      ar.Get("/rewards", s.adminRewards)
+      ar.Post("/rewards", s.adminRewardCreate)
+      ar.Post("/rewards/{id}/update", s.adminRewardUpdate)
+      ar.Post("/rewards/{id}/delete", s.adminRewardDelete)
+      ar.Get("/achievements", s.adminAchievements)
+      ar.Post("/achievements", s.adminAchievementCreate)
+      ar.Post("/achievements/{id}/update", s.adminAchievementUpdate)
       ar.Get("/workouts", s.adminWorkouts)
       ar.Post("/workouts", s.adminWorkoutCreate)
       ar.Post("/workouts/{id}/update", s.adminWorkoutUpdate)
       ar.Get("/workouts/{id}", s.adminWorkoutDetail)
       ar.Post("/workouts/{id}/exercises/add", s.adminWorkoutExerciseAdd)
+      ar.Post("/workouts/{id}/exercises/{exerciseId}/update", s.adminWorkoutExerciseUpdate)
       ar.Post("/workouts/{id}/exercises/{exerciseId}/remove", s.adminWorkoutExerciseRemove)
       ar.Get("/programs", s.adminPrograms)
       ar.Post("/programs", s.adminProgramCreate)
@@ -267,17 +314,24 @@ func (s *Site) Router() chi.Router {
 }
 
 func (s *Site) baseData(r *http.Request, title, active string) map[string]any {
-  return map[string]any{
+  user := middleware.UserFromContext(r.Context())
+  data := map[string]any{
     "Title":  title,
     "Active": active,
-    "User":   middleware.UserFromContext(r.Context()),
+    "User":   user,
   }
+  if user != nil {
+    notifications := s.loadNotifications(user.ID)
+    data["Notifications"] = notifications
+    data["NotificationsCount"] = len(notifications)
+  }
+  return data
 }
 
 func (s *Site) render(w http.ResponseWriter, name string, data map[string]any) {
   if err := s.Renderer.Render(w, name, data); err != nil {
     log.Printf("render %s: %v", name, err)
-    http.Error(w, "template error", http.StatusInternalServerError)
+    http.Error(w, "Ошибка шаблона", http.StatusInternalServerError)
   }
 }
 
@@ -290,7 +344,7 @@ func (s *Site) requireRoles(roles ...string) func(http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
       user := middleware.UserFromContext(r.Context())
       if user == nil || !allowed[user.Role] {
-        http.Error(w, "forbidden", http.StatusForbidden)
+        http.Error(w, "Доступ запрещён", http.StatusForbidden)
         return
       }
       next.ServeHTTP(w, r)
@@ -384,7 +438,7 @@ func (s *Site) loginSubmit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) registerPage(w http.ResponseWriter, r *http.Request) {
   if !s.Config.AllowSelfRegister {
-    http.Error(w, "registration disabled", http.StatusForbidden)
+    http.Error(w, "Регистрация отключена", http.StatusForbidden)
     return
   }
   data := s.baseData(r, "Регистрация", "")
@@ -395,7 +449,7 @@ func (s *Site) registerPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) registerSubmit(w http.ResponseWriter, r *http.Request) {
   if !s.Config.AllowSelfRegister {
-    http.Error(w, "registration disabled", http.StatusForbidden)
+    http.Error(w, "Регистрация отключена", http.StatusForbidden)
     return
   }
 
@@ -607,7 +661,260 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
   data["NextWorkout"] = nextWorkout
   data["DoctorApproved"] = s.loadDoctorApproval(user.ID)
   data["Goal"] = goal
+  period := normalizeTrendPeriod(r.URL.Query().Get("period"))
+  config, _ := trendPeriodConfig(period, time.Now())
+  data["Trend"] = s.loadUserTrendPeriod(user.ID, period)
+  data["TrendTitle"] = "Моя динамика тренировок и переносимости"
+  data["TrendBadge"] = config.Badge
+  data["TrendPeriod"] = period
+  data["TrendMode"] = "time"
   s.render(w, "dashboard", data)
+}
+
+func (s *Site) loadUserTrendPeriod(userID, period string) []trendPoint {
+  period = normalizeTrendPeriod(period)
+  config, start := trendPeriodConfig(period, time.Now())
+
+  workoutCounts := map[string]int{}
+  rows, err := s.DB.Query(
+    `select date_trunc($3, completed_at)::date, count(*)
+     from workout_sessions
+     where user_id = $1 and completed_at is not null and completed_at >= $2
+     group by 1
+     order by 1`,
+    userID,
+    start,
+    period,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var day time.Time
+      var count int
+      _ = rows.Scan(&day, &count)
+      workoutCounts[day.Format("2006-01-02")] = count
+    }
+  }
+
+  toleranceAvg := map[string]int{}
+  tRows, err := s.DB.Query(
+    `select date_trunc($3, created_at)::date, avg(coalesce(tolerance, 0))
+     from workout_session_feedback
+     where user_id = $1 and created_at >= $2
+     group by 1
+     order by 1`,
+    userID,
+    start,
+    period,
+  )
+  if err == nil {
+    defer tRows.Close()
+    for tRows.Next() {
+      var day time.Time
+      var avg float64
+      _ = tRows.Scan(&day, &avg)
+      toleranceAvg[day.Format("2006-01-02")] = int(avg + 0.5)
+    }
+  }
+
+  maxWorkouts := 1
+  for _, value := range workoutCounts {
+    if value > maxWorkouts {
+      maxWorkouts = value
+    }
+  }
+
+  trend := []trendPoint{}
+  for i := 0; i < config.Points; i++ {
+    point := trendPointTime(start, period, i)
+    key := point.Format("2006-01-02")
+    workouts := workoutCounts[key]
+    tolerance := toleranceAvg[key]
+    if tolerance < 0 {
+      tolerance = 0
+    }
+    if tolerance > 5 {
+      tolerance = 5
+    }
+    trend = append(trend, trendPoint{
+      Label:            point.Format(config.LabelFmt),
+      Workouts:         workouts,
+      WorkoutsPercent:  int(float64(workouts) / float64(maxWorkouts) * 100),
+      Tolerance:        tolerance,
+      TolerancePercent: tolerance * 20,
+    })
+  }
+
+  return trend
+}
+
+func (s *Site) loadDepartmentTrendPeriod(department, period string) []trendPoint {
+  period = normalizeTrendPeriod(period)
+  config, start := trendPeriodConfig(period, time.Now())
+
+  workoutCounts := map[string]int{}
+  rows, err := s.DB.Query(
+    `select date_trunc($3, ws.completed_at)::date, count(*)
+     from workout_sessions ws
+     join users u on u.id = ws.user_id
+     where ws.completed_at is not null and ws.completed_at >= $1
+       and u.role = 'employee'
+       and ($2 = '' or u.department = $2)
+     group by 1
+     order by 1`,
+    start,
+    department,
+    period,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var day time.Time
+      var count int
+      _ = rows.Scan(&day, &count)
+      workoutCounts[day.Format("2006-01-02")] = count
+    }
+  }
+
+  toleranceAvg := map[string]int{}
+  tRows, err := s.DB.Query(
+    `select date_trunc($3, f.created_at)::date, avg(coalesce(f.tolerance, 0))
+     from workout_session_feedback f
+     join users u on u.id = f.user_id
+     where f.created_at >= $1
+       and u.role = 'employee'
+       and ($2 = '' or u.department = $2)
+     group by 1
+     order by 1`,
+    start,
+    department,
+    period,
+  )
+  if err == nil {
+    defer tRows.Close()
+    for tRows.Next() {
+      var day time.Time
+      var avg float64
+      _ = tRows.Scan(&day, &avg)
+      toleranceAvg[day.Format("2006-01-02")] = int(avg + 0.5)
+    }
+  }
+
+  maxWorkouts := 1
+  for _, value := range workoutCounts {
+    if value > maxWorkouts {
+      maxWorkouts = value
+    }
+  }
+
+  trend := []trendPoint{}
+  for i := 0; i < config.Points; i++ {
+    point := trendPointTime(start, period, i)
+    key := point.Format("2006-01-02")
+    workouts := workoutCounts[key]
+    tolerance := toleranceAvg[key]
+    if tolerance < 0 {
+      tolerance = 0
+    }
+    if tolerance > 5 {
+      tolerance = 5
+    }
+    trend = append(trend, trendPoint{
+      Label:            point.Format(config.LabelFmt),
+      Workouts:         workouts,
+      WorkoutsPercent:  int(float64(workouts) / float64(maxWorkouts) * 100),
+      Tolerance:        tolerance,
+      TolerancePercent: tolerance * 20,
+    })
+  }
+
+  return trend
+}
+
+func (s *Site) loadEmployeeTrend(department, period string) []trendPoint {
+  period = normalizeTrendPeriod(period)
+  _, start := trendPeriodConfig(period, time.Now())
+
+  type employeeStat struct {
+    ID       string
+    Name     string
+    Workouts int
+  }
+  employees := []employeeStat{}
+
+  rows, err := s.DB.Query(
+    `select u.id, u.name, coalesce(count(ws.id), 0) as workouts
+     from users u
+     left join workout_sessions ws
+       on ws.user_id = u.id
+      and ws.completed_at is not null
+      and ws.completed_at >= $1
+     where u.role = 'employee'
+       and ($2 = '' or u.department = $2)
+     group by u.id, u.name
+     order by workouts desc, u.name
+     limit 10`,
+    start,
+    department,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var e employeeStat
+      _ = rows.Scan(&e.ID, &e.Name, &e.Workouts)
+      employees = append(employees, e)
+    }
+  }
+
+  toleranceAvg := map[string]int{}
+  tRows, err := s.DB.Query(
+    `select u.id, avg(coalesce(f.tolerance, 0))
+     from users u
+     left join workout_session_feedback f
+       on f.user_id = u.id
+      and f.created_at >= $1
+     where u.role = 'employee'
+       and ($2 = '' or u.department = $2)
+     group by u.id`,
+    start,
+    department,
+  )
+  if err == nil {
+    defer tRows.Close()
+    for tRows.Next() {
+      var userID string
+      var avg float64
+      _ = tRows.Scan(&userID, &avg)
+      toleranceAvg[userID] = int(avg + 0.5)
+    }
+  }
+
+  maxWorkouts := 1
+  for _, e := range employees {
+    if e.Workouts > maxWorkouts {
+      maxWorkouts = e.Workouts
+    }
+  }
+
+  trend := make([]trendPoint, 0, len(employees))
+  for _, e := range employees {
+    tolerance := toleranceAvg[e.ID]
+    if tolerance < 0 {
+      tolerance = 0
+    }
+    if tolerance > 5 {
+      tolerance = 5
+    }
+    trend = append(trend, trendPoint{
+      Label:            e.Name,
+      Workouts:         e.Workouts,
+      WorkoutsPercent:  int(float64(e.Workouts) / float64(maxWorkouts) * 100),
+      Tolerance:        tolerance,
+      TolerancePercent: tolerance * 20,
+    })
+  }
+
+  return trend
 }
 
 func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
@@ -634,7 +941,7 @@ func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
   rows, err := s.DB.Query(
     `select e.id, e.name, e.description, coalesce(e.category, ''), coalesce(we.sets, e.sets, 1),
             coalesce(we.reps, e.reps, '10'), coalesce(we.rest_seconds, e.rest_seconds, 30),
-            coalesce(e.duration_seconds, 0), coalesce(e.muscle_groups, '{}'), coalesce(e.equipment, '{}'), coalesce(e.video_url, '')
+            coalesce(e.duration_seconds, 0), coalesce(e.muscle_groups, '{}'), coalesce(e.equipment, '{}'), coalesce(e.image_url, '')
      from workout_exercises we
      join exercises e on e.id = we.exercise_id
      where we.workout_id = $1
@@ -645,8 +952,8 @@ func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       var ex exerciseCard
-      _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
-      ex.VideoURL = normalizeVideoURL(ex.VideoURL)
+      _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.ImageURL)
+      ex.ImageURL = normalizeImageURL(ex.ImageURL)
       exercises = append(exercises, ex)
     }
   }
@@ -741,7 +1048,10 @@ func (s *Site) exercises(w http.ResponseWriter, r *http.Request) {
   rows, err := s.DB.Query(
     `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
             coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
-            coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
+            coalesce(duration_seconds, 0),
+            coalesce(array_to_string(muscle_groups, ','), ''),
+            coalesce(array_to_string(equipment, ','), ''),
+            coalesce(image_url, '')
      from exercises
      where ($1 = '' or name ilike '%' || $1 || '%')
        and ($2 = '' or difficulty ilike '%' || $2 || '%')
@@ -754,9 +1064,15 @@ func (s *Site) exercises(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       var ex exerciseCard
-      _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+      var musclesRaw string
+      var equipmentRaw string
+      if err := rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &musclesRaw, &equipmentRaw, &ex.ImageURL); err != nil {
+        continue
+      }
       ex.ID = normalizeResourceID(ex.ID)
-      ex.VideoURL = normalizeVideoURL(ex.VideoURL)
+      ex.MuscleGroups = parseCSV(musclesRaw)
+      ex.Equipment = parseCSV(equipmentRaw)
+      ex.ImageURL = normalizeImageURL(ex.ImageURL)
       exercises = append(exercises, ex)
     }
   }
@@ -804,7 +1120,7 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
 func (s *Site) profileUpdate(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
   if user.Role != "admin" {
-    http.Error(w, "forbidden", http.StatusForbidden)
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
     return
   }
   if err := r.ParseForm(); err != nil {
@@ -865,15 +1181,14 @@ func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
     return
   }
   exerciseID := normalizeResourceID(rawParam)
-  if !looksLikeUUID(exerciseID) {
-    exerciseID = ""
-  }
   nameParam := strings.TrimSpace(r.URL.Query().Get("name"))
+  decodedParam := rawParam
+  if decoded, err := url.PathUnescape(decodedParam); err == nil {
+    decodedParam = decoded
+  }
+  decodedParam = strings.TrimSpace(decodedParam)
   if nameParam == "" {
-    nameParam = strings.ReplaceAll(rawParam, "+", " ")
-    if decoded, err := url.PathUnescape(nameParam); err == nil {
-      nameParam = decoded
-    }
+    nameParam = decodedParam
   }
   nameParam = strings.TrimSpace(nameParam)
   namePattern := ""
@@ -882,26 +1197,35 @@ func (s *Site) exerciseDetail(w http.ResponseWriter, r *http.Request) {
   }
 
   var ex exerciseCard
+  var musclesRaw string
+  var equipmentRaw string
   err := s.DB.QueryRow(
     `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
             coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
-            coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
+            coalesce(duration_seconds, 0),
+            coalesce(array_to_string(muscle_groups, ','), ''),
+            coalesce(array_to_string(equipment, ','), ''),
+            coalesce(image_url, '')
      from exercises
      where ($1 <> '' and id::text = $1)
-        or ($2 <> '' and lower(name) = lower($2))
-        or ($2 <> '' and replace(replace(lower(name), ' ', ''), '-', '') = replace(replace(lower($2), ' ', ''), '-', ''))
-        or ($3 <> '' and lower(name) like lower($3))
+        or ($2 <> '' and id::text = $2)
+        or ($3 <> '' and lower(name) = lower($3))
+        or ($3 <> '' and replace(replace(lower(name), ' ', ''), '-', '') = replace(replace(lower($3), ' ', ''), '-', ''))
+        or ($4 <> '' and lower(name) like lower($4))
      limit 1`,
     exerciseID,
+    rawParam,
     nameParam,
     namePattern,
-  ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+  ).Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &musclesRaw, &equipmentRaw, &ex.ImageURL)
   if err != nil {
     http.Redirect(w, r, "/exercises?error=Упражнение%20не%20найдено", http.StatusSeeOther)
     return
   }
   ex.ID = normalizeResourceID(ex.ID)
-  ex.VideoURL = normalizeVideoURL(ex.VideoURL)
+  ex.MuscleGroups = parseCSV(musclesRaw)
+  ex.Equipment = parseCSV(equipmentRaw)
+  ex.ImageURL = normalizeImageURL(ex.ImageURL)
 
   data := s.baseData(r, ex.Name, "exercises")
   data["Exercise"] = ex
@@ -1187,6 +1511,34 @@ func (s *Site) buildSessionView(userID, sessionID string) (*sessionView, error) 
     exercises = append(exercises, ex)
   }
 
+  durationsByExercise := map[string][]int{}
+  totalsByExercise := map[string]int{}
+  durRows, err := s.DB.Query(
+    `select session_exercise_id, set_index, duration_seconds
+     from workout_session_sets
+     where session_id = $1
+     order by set_index`,
+    sessionID,
+  )
+  if err == nil {
+    defer durRows.Close()
+    for durRows.Next() {
+      var exID string
+      var setIndex int
+      var seconds int
+      _ = durRows.Scan(&exID, &setIndex, &seconds)
+      durationsByExercise[exID] = append(durationsByExercise[exID], seconds)
+      totalsByExercise[exID] += seconds
+    }
+  }
+
+  for i := range exercises {
+    if durations, ok := durationsByExercise[exercises[i].ID]; ok {
+      exercises[i].SetDurations = durations
+      exercises[i].TotalSeconds = totalsByExercise[exercises[i].ID]
+    }
+  }
+
   view := &sessionView{
     ID:          sessionID,
     WorkoutName: workoutName,
@@ -1206,6 +1558,8 @@ func (s *Site) buildSessionView(userID, sessionID string) (*sessionView, error) 
   }
 
   if completedAt.Valid {
+    view.CompletedAt = completedAt.Time.Format("02.01.2006 15:04")
+    view.TotalSeconds = int(completedAt.Time.Sub(startedAt).Seconds())
     view.Completed = true
     view.ProgressPercent = 100
     return view, nil
@@ -1231,7 +1585,12 @@ func (s *Site) buildSessionView(userID, sessionID string) (*sessionView, error) 
 
 func (s *Site) completeSet(userID, sessionID string) error {
   var ownerID string
-  err := s.DB.QueryRow("select user_id from workout_sessions where id = $1", sessionID).Scan(&ownerID)
+  var startedAt time.Time
+  var lastSet sql.NullTime
+  err := s.DB.QueryRow(
+    "select user_id, started_at, last_set_completed_at from workout_sessions where id = $1",
+    sessionID,
+  ).Scan(&ownerID, &startedAt, &lastSet)
   if err != nil {
     return err
   }
@@ -1269,6 +1628,27 @@ func (s *Site) completeSet(userID, sessionID string) error {
     exID,
   )
 
+  setStart := startedAt
+  if lastSet.Valid {
+    setStart = lastSet.Time
+  }
+  completedAt := time.Now()
+  durationSeconds := int(completedAt.Sub(setStart).Seconds())
+  if durationSeconds < 0 {
+    durationSeconds = 0
+  }
+  _, _ = s.DB.Exec(
+    `insert into workout_session_sets (session_id, session_exercise_id, set_index, started_at, completed_at, duration_seconds)
+     values ($1, $2, $3, $4, $5, $6)`,
+    sessionID,
+    exID,
+    completedSets,
+    setStart,
+    completedAt,
+    durationSeconds,
+  )
+  _, _ = s.DB.Exec(`update workout_sessions set last_set_completed_at = $1 where id = $2`, completedAt, sessionID)
+
   if completed {
     _, _ = s.DB.Exec(
       `update workout_sessions set completed_exercises = completed_exercises + 1 where id = $1`,
@@ -1293,7 +1673,8 @@ func (s *Site) completeSet(userID, sessionID string) error {
 func (s *Site) completeWorkoutSession(userID, sessionID string) error {
   var ownerID string
   var completedAt sql.NullTime
-  _ = s.DB.QueryRow("select user_id, completed_at from workout_sessions where id = $1", sessionID).Scan(&ownerID, &completedAt)
+  var startedAt time.Time
+  _ = s.DB.QueryRow("select user_id, completed_at, started_at from workout_sessions where id = $1", sessionID).Scan(&ownerID, &completedAt, &startedAt)
   if ownerID != userID {
     return errors.New("forbidden")
   }
@@ -1301,11 +1682,16 @@ func (s *Site) completeWorkoutSession(userID, sessionID string) error {
     return nil
   }
 
+  durationMinutes := int(time.Since(startedAt).Minutes())
+  if durationMinutes <= 0 {
+    durationMinutes = 1
+  }
   _, err := s.DB.Exec(
     `update workout_sessions
-     set completed_at = now(), duration_minutes = coalesce(duration_minutes, 30), calories_burned = coalesce(calories_burned, 250)
+     set completed_at = now(), duration_minutes = $2, calories_burned = coalesce(calories_burned, 250)
      where id = $1`,
     sessionID,
+    durationMinutes,
   )
   if err != nil {
     return err
@@ -1340,6 +1726,78 @@ func randomToken(length int) (string, error) {
   return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
+func weekStart(now time.Time) time.Time {
+  weekday := int(now.Weekday())
+  if weekday == 0 {
+    weekday = 7
+  }
+  start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+  return start.AddDate(0, 0, -(weekday - 1))
+}
+
+type trendPeriodSettings struct {
+  Period   string
+  Points   int
+  LabelFmt string
+  Badge    string
+}
+
+func normalizeTrendPeriod(value string) string {
+  switch strings.ToLower(strings.TrimSpace(value)) {
+  case "day":
+    return "day"
+  case "month":
+    return "month"
+  case "week":
+    fallthrough
+  default:
+    return "week"
+  }
+}
+
+func trendPeriodConfig(period string, now time.Time) (trendPeriodSettings, time.Time) {
+  switch period {
+  case "day":
+    points := 14
+    start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(points-1))
+    return trendPeriodSettings{
+      Period:   period,
+      Points:   points,
+      LabelFmt: "02.01",
+      Badge:    "14 дней",
+    }, start
+  case "month":
+    points := 6
+    start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).AddDate(0, -(points-1), 0)
+    return trendPeriodSettings{
+      Period:   period,
+      Points:   points,
+      LabelFmt: "01.2006",
+      Badge:    "6 месяцев",
+    }, start
+  default:
+    points := 6
+    start := weekStart(now).AddDate(0, 0, -(points-1)*7)
+    return trendPeriodSettings{
+      Period:   "week",
+      Points:   points,
+      LabelFmt: "02.01",
+      Badge:    "6 недель",
+    }, start
+  }
+}
+
+func trendPointTime(start time.Time, period string, index int) time.Time {
+  switch period {
+  case "month":
+    return start.AddDate(0, index, 0)
+  case "week":
+    return start.AddDate(0, 0, index*7)
+  default:
+    return start.AddDate(0, 0, index)
+  }
+}
+
 func nullIfEmpty(value string) any {
   if strings.TrimSpace(value) == "" {
     return nil
@@ -1362,97 +1820,8 @@ func parseCSV(value string) []string {
   return out
 }
 
-func normalizeVideoURL(value string) string {
-  trimmed := strings.TrimSpace(value)
-  if trimmed == "" {
-    return ""
-  }
-  if strings.Contains(trimmed, "<iframe") {
-    if src := extractIframeSrc(trimmed); src != "" {
-      trimmed = src
-    }
-  }
-  if isYouTubeID(trimmed) {
-    return "https://www.youtube.com/embed/" + trimmed
-  }
-  if strings.Contains(trimmed, "youtube.com/embed/") {
-    return trimmed
-  }
-  if strings.HasPrefix(trimmed, "youtu.be/") || strings.HasPrefix(trimmed, "youtube.com/") || strings.HasPrefix(trimmed, "www.youtube.com/") {
-    trimmed = "https://" + trimmed
-  }
-  parsed, err := url.Parse(trimmed)
-  if err != nil {
-    return trimmed
-  }
-  host := strings.ToLower(parsed.Host)
-  path := strings.Trim(parsed.Path, "/")
-  if strings.Contains(host, "youtu.be") {
-    if path != "" {
-      id := strings.Split(path, "/")[0]
-      if id != "" {
-        return "https://www.youtube.com/embed/" + id
-      }
-    }
-    return trimmed
-  }
-  if strings.Contains(host, "youtube.com") {
-    if strings.HasPrefix(path, "embed/") {
-      return trimmed
-    }
-    if strings.HasPrefix(path, "shorts/") {
-      id := strings.TrimPrefix(path, "shorts/")
-      if id != "" {
-        return "https://www.youtube.com/embed/" + id
-      }
-    }
-    if strings.HasPrefix(path, "live/") {
-      id := strings.TrimPrefix(path, "live/")
-      if id != "" {
-        return "https://www.youtube.com/embed/" + id
-      }
-    }
-    if strings.HasSuffix(path, "watch") || path == "watch" {
-      vid := parsed.Query().Get("v")
-      if vid != "" {
-        return "https://www.youtube.com/embed/" + vid
-      }
-    }
-  }
-  return trimmed
-}
-
-func isYouTubeID(value string) bool {
-  if len(value) != 11 {
-    return false
-  }
-  for _, r := range value {
-    if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-      continue
-    }
-    return false
-  }
-  return true
-}
-
-func extractIframeSrc(value string) string {
-  srcIndex := strings.Index(strings.ToLower(value), "src=")
-  if srcIndex == -1 {
-    return ""
-  }
-  rest := value[srcIndex+4:]
-  if len(rest) == 0 {
-    return ""
-  }
-  quote := rest[0]
-  if quote != '"' && quote != '\'' {
-    return ""
-  }
-  end := strings.IndexByte(rest[1:], quote)
-  if end == -1 {
-    return ""
-  }
-  return rest[1 : 1+end]
+func normalizeImageURL(value string) string {
+  return strings.TrimSpace(value)
 }
 
 func normalizeResourceID(value string) string {
@@ -1460,25 +1829,6 @@ func normalizeResourceID(value string) string {
   trimmed = strings.Trim(trimmed, "{}")
   trimmed = strings.ToLower(trimmed)
   return trimmed
-}
-
-func looksLikeUUID(value string) bool {
-  if len(value) != 36 {
-    return false
-  }
-  for i, r := range value {
-    switch i {
-    case 8, 13, 18, 23:
-      if r != '-' {
-        return false
-      }
-    default:
-      if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
-        return false
-      }
-    }
-  }
-  return true
 }
 
 func uniqueStrings(exercises []exerciseCard, selector func(exerciseCard) []string) []string {

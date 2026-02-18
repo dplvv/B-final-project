@@ -29,7 +29,7 @@
       </div>
       {{ $status := index $.RedemptionStatus .ID }}
       {{ if $status }}
-        <span class="badge warning">{{ $status }}</span>
+        <span class="badge warning">{{ statusLabel $status }}</span>
       {{ else }}
         {{ if ge $.Points .PointsCost }}
           <form method="post" action="/rewards/{{ .ID }}/redeem">

@@ -10,34 +10,38 @@
   <div class="notice" style="margin-bottom: 16px;">{{ .Success }}</div>
 {{ end }}
 
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">Основные данные</div>
-    </div>
-    <div style="display:grid; gap: 8px;">
-      <div><strong>ФИО:</strong> {{ .Profile.User.Name }}</div>
-      <div><strong>ID-сотрудника:</strong> {{ .Profile.User.EmployeeID }}</div>
-      <div><strong>Отдел:</strong> {{ .Profile.User.Department }}</div>
-      <div><strong>Должность:</strong> {{ .Profile.User.Position }}</div>
-      <div><strong>Баллы:</strong> {{ .Profile.Points }}</div>
+<div class="grid cols-3">
+  <div class="card profile-overview">
+    <div class="profile-name">{{ .Profile.User.Name }}</div>
+    <div class="muted">{{ .Profile.User.Department }} · {{ .Profile.User.Position }}</div>
+    <div class="profile-meta">
+      <span class="badge">ID {{ .Profile.User.EmployeeID }}</span>
+      <span class="badge">Баллы {{ .Profile.Points }}</span>
     </div>
   </div>
-
   <div class="card">
     <div class="card-header">
       <div class="card-title">Показатели</div>
     </div>
-    <div style="display:grid; gap: 8px;">
-      <div><strong>Возраст:</strong> {{ .Profile.Age }}</div>
-      <div><strong>Уровень:</strong> {{ .Profile.FitnessLevel }}</div>
+    <div class="info-list">
+      <div><strong>Возраст:</strong> {{ if gt .Profile.Age 0 }}{{ .Profile.Age }}{{ else }}—{{ end }}</div>
+      <div><strong>Уровень:</strong> {{ if .Profile.FitnessLevel }}{{ .Profile.FitnessLevel }}{{ else }}—{{ end }}</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Безопасность</div>
+    </div>
+    <div class="info-list">
+      <div><strong>Ограничения:</strong> {{ if .SelectedRestrictions }}{{ join .SelectedRestrictions ", " }}{{ else }}не указаны{{ end }}</div>
+      <div><strong>Допуск врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
     </div>
   </div>
 </div>
 
-<div class="card" style="margin-top: 20px;">
+<div class="card" style="margin-top: 24px;">
   <div class="card-header">
-    <div class="card-title">Анкета</div>
+    <div class="card-title">Параметры программы</div>
     {{ if .QuestionnaireComplete }}
       <a class="button secondary" href="/questionnaire?edit=1&from=/profile">Редактировать</a>
     {{ else }}
@@ -47,13 +51,10 @@
   {{ if .QuestionnaireComplete }}
     <div class="info-list">
       <div><strong>Цель:</strong> {{ .Questionnaire.Goal }}</div>
-      <div><strong>Уровень:</strong> {{ .Questionnaire.FitnessLevel }}</div>
       <div><strong>Частота:</strong> {{ .Questionnaire.DaysPerWeek }} раз/нед</div>
       <div><strong>Длительность:</strong> {{ .Questionnaire.SessionMinutes }} мин</div>
       <div><strong>Инвентарь:</strong> {{ if .Questionnaire.Equipment }}{{ join .Questionnaire.Equipment ", " }}{{ else }}без инвентаря{{ end }}</div>
-      {{ if .Questionnaire.Preferences }}<div><strong>Предпочтения:</strong> {{ .Questionnaire.Preferences }}</div>{{ end }}
-      <div><strong>Ограничения:</strong> {{ if .SelectedRestrictions }}{{ join .SelectedRestrictions ", " }}{{ else }}не указаны{{ end }}</div>
-      <div><strong>Допуск врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
+      {{ if .Questionnaire.Preferences }}<div><strong>Формат:</strong> {{ .Questionnaire.Preferences }}</div>{{ end }}
     </div>
   {{ else }}
     <div class="empty-state">
@@ -64,7 +65,7 @@
 </div>
 
 {{ if .CanEditProfile }}
-  <div class="card" style="margin-top: 20px;">
+  <div class="card" style="margin-top: 24px;">
     <div class="card-header">
       <div class="card-title">Редактировать профиль</div>
     </div>

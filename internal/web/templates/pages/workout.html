@@ -121,8 +121,8 @@
         {{ if .Equipment }}<span class="badge">Инвентарь: {{ join .Equipment ", " }}</span>{{ end }}
       </div>
       <div style="display:flex; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
-        <a class="button secondary" href="/exercises/{{ .ID }}">Посмотреть</a>
-        {{ if .VideoURL }}<span class="badge success">Видео доступно</span>{{ end }}
+        <a class="button secondary" href="/exercises/{{ .ID }}?name={{ urlquery .Name }}">Посмотреть</a>
+        {{ if .ImageURL }}<span class="badge success">Фото доступно</span>{{ end }}
       </div>
     </div>
   {{ else }}

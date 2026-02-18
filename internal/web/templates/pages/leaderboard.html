@@ -15,6 +15,9 @@
         <th>Отдел</th>
         <th>Баллы</th>
         <th>Тренировок</th>
+        <th>Минут</th>
+        <th>Переносимость</th>
+        <th>Последняя</th>
       </tr>
     </thead>
     <tbody>
@@ -25,10 +28,13 @@
           <td>{{ if $row.Department }}{{ $row.Department }}{{ else }}—{{ end }}</td>
           <td>{{ $row.Points }}</td>
           <td>{{ $row.Workouts }}</td>
+          <td>{{ $row.Minutes }}</td>
+          <td>{{ if gt $row.AvgTolerance 0 }}{{ $row.AvgTolerance }}/5{{ else }}—{{ end }}</td>
+          <td>{{ if $row.LastWorkout }}{{ $row.LastWorkout }}{{ else }}—{{ end }}</td>
         </tr>
       {{ else }}
         <tr>
-          <td colspan="5">
+          <td colspan="8">
             <div class="empty-state">
               <div class="empty-title">Рейтинг пока пуст</div>
               <div class="muted">Завершите первые тренировки — и вы появитесь в рейтинге.</div>

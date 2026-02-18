@@ -8,10 +8,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h12v4H6z"/><path d="M4 8h16v12H4z"/></svg>
     План
   </a>
-  <a class="nav-item {{ if eq .Active "history" }}active{{ end }}" href="/history">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-    История
-  </a>
   <a class="nav-item {{ if eq .Active "leaderboard" }}active{{ end }}" href="/leaderboard">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h8v12H8z"/><path d="M4 10h4v8H4z"/><path d="M16 9h4v9h-4z"/></svg>
     Рейтинг
@@ -60,10 +56,6 @@
   <a class="{{ if eq .Active "program" }}active{{ end }}" href="/program">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h12v4H6z"/><path d="M4 8h16v12H4z"/></svg>
     План
-  </a>
-  <a class="{{ if eq .Active "history" }}active{{ end }}" href="/history">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-    История
   </a>
   <a class="{{ if eq .Active "rewards" }}active{{ end }}" href="/rewards">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12v10H6z"/><path d="M9 7V5h6v2"/><path d="M9 17h6"/></svg>

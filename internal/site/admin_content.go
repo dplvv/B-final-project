@@ -1,7 +1,14 @@
 package site
 
 import (
+  "bytes"
+  "errors"
+  "fmt"
+  "io"
   "net/http"
+  "net/url"
+  "os"
+  "path/filepath"
   "strconv"
   "strings"
   "time"
@@ -18,7 +25,10 @@ func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
   rows, err := s.DB.Query(
     `select id, name, description, coalesce(category, ''), coalesce(difficulty, ''),
             coalesce(sets, 0), coalesce(reps, ''), coalesce(rest_seconds, 0),
-            coalesce(duration_seconds, 0), coalesce(muscle_groups, '{}'), coalesce(equipment, '{}'), coalesce(video_url, '')
+            coalesce(duration_seconds, 0),
+            coalesce(array_to_string(muscle_groups, ','), ''),
+            coalesce(array_to_string(equipment, ','), ''),
+            coalesce(image_url, '')
      from exercises
      order by name`,
   )
@@ -27,7 +37,14 @@ func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       var ex exerciseCard
-      _ = rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &ex.MuscleGroups, &ex.Equipment, &ex.VideoURL)
+      var musclesRaw string
+      var equipmentRaw string
+      if err := rows.Scan(&ex.ID, &ex.Name, &ex.Description, &ex.Category, &ex.Difficulty, &ex.Sets, &ex.Reps, &ex.Rest, &ex.Duration, &musclesRaw, &equipmentRaw, &ex.ImageURL); err != nil {
+        continue
+      }
+      ex.MuscleGroups = parseCSV(musclesRaw)
+      ex.Equipment = parseCSV(equipmentRaw)
+      ex.ImageURL = normalizeImageURL(ex.ImageURL)
       exercises = append(exercises, ex)
     }
   }
@@ -35,8 +52,232 @@ func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
   s.render(w, "admin_exercises", data)
 }
 
-func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
+func (s *Site) adminRewards(w http.ResponseWriter, r *http.Request) {
+  data := s.baseData(r, "Поощрения", "admin")
+  data["Success"] = r.URL.Query().Get("success")
+  data["Error"] = r.URL.Query().Get("error")
+
+  rows, err := s.DB.Query(
+    `select id, title, description, points_cost, coalesce(category, ''), active
+     from rewards
+     order by points_cost`,
+  )
+  rewards := []rewardView{}
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var rwd rewardView
+      _ = rows.Scan(&rwd.ID, &rwd.Title, &rwd.Description, &rwd.PointsCost, &rwd.Category, &rwd.Active)
+      rewards = append(rewards, rwd)
+    }
+  }
+  data["Rewards"] = rewards
+  s.render(w, "admin_rewards", data)
+}
+
+func (s *Site) adminRewardCreate(w http.ResponseWriter, r *http.Request) {
   if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/admin/rewards?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  title := strings.TrimSpace(r.FormValue("title"))
+  description := strings.TrimSpace(r.FormValue("description"))
+  category := strings.TrimSpace(r.FormValue("category"))
+  cost, _ := strconv.Atoi(r.FormValue("points_cost"))
+  active := r.FormValue("active") == "on"
+  if title == "" || description == "" {
+    http.Redirect(w, r, "/admin/rewards?error=Заполните%20название%20и%20описание", http.StatusSeeOther)
+    return
+  }
+
+  _, err := s.DB.Exec(
+    `insert into rewards (title, description, points_cost, category, active)
+     values ($1, $2, $3, nullif($4, ''), $5)
+     on conflict (title)
+     do update set description = excluded.description,
+                   points_cost = excluded.points_cost,
+                   category = excluded.category,
+                   active = excluded.active`,
+    title,
+    description,
+    cost,
+    category,
+    active,
+  )
+  if err != nil {
+    http.Redirect(w, r, "/admin/rewards?error=Не%20удалось%20сохранить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/rewards?success=Поощрение%20сохранено", http.StatusSeeOther)
+}
+
+func (s *Site) adminRewardUpdate(w http.ResponseWriter, r *http.Request) {
+  rewardID := chi.URLParam(r, "id")
+  if rewardID == "" {
+    http.Redirect(w, r, "/admin/rewards?error=Не%20найдено%20поощрение", http.StatusSeeOther)
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/admin/rewards?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  title := strings.TrimSpace(r.FormValue("title"))
+  description := strings.TrimSpace(r.FormValue("description"))
+  category := strings.TrimSpace(r.FormValue("category"))
+  cost, _ := strconv.Atoi(r.FormValue("points_cost"))
+  active := r.FormValue("active") == "on"
+
+  _, err := s.DB.Exec(
+    `update rewards
+     set title = coalesce(nullif($1, ''), title),
+         description = coalesce(nullif($2, ''), description),
+         points_cost = $3,
+         category = nullif($4, ''),
+         active = $5
+     where id = $6`,
+    title,
+    description,
+    cost,
+    category,
+    active,
+    rewardID,
+  )
+  if err != nil {
+    http.Redirect(w, r, "/admin/rewards?error=Не%20удалось%20обновить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/rewards?success=Поощрение%20обновлено", http.StatusSeeOther)
+}
+
+func (s *Site) adminRewardDelete(w http.ResponseWriter, r *http.Request) {
+  rewardID := chi.URLParam(r, "id")
+  if rewardID == "" {
+    http.Redirect(w, r, "/admin/rewards?error=Не%20найдено%20поощрение", http.StatusSeeOther)
+    return
+  }
+  _, err := s.DB.Exec(`delete from rewards where id = $1`, rewardID)
+  if err != nil {
+    http.Redirect(w, r, "/admin/rewards?error=Не%20удалось%20удалить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/rewards?success=Поощрение%20удалено", http.StatusSeeOther)
+}
+
+func (s *Site) adminAchievements(w http.ResponseWriter, r *http.Request) {
+  data := s.baseData(r, "Достижения", "admin")
+  data["Success"] = r.URL.Query().Get("success")
+  data["Error"] = r.URL.Query().Get("error")
+
+  type achievementAdminView struct {
+    ID           string
+    Title        string
+    Description  string
+    Icon         string
+    PointsReward int
+    Metric       string
+    Target       int
+  }
+
+  rows, err := s.DB.Query(
+    `select id, title, description, icon, points_reward, coalesce(metric, ''), coalesce(target, 0)
+     from achievements
+     order by created_at desc`,
+  )
+  achievements := []achievementAdminView{}
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var a achievementAdminView
+      _ = rows.Scan(&a.ID, &a.Title, &a.Description, &a.Icon, &a.PointsReward, &a.Metric, &a.Target)
+      achievements = append(achievements, a)
+    }
+  }
+  data["Achievements"] = achievements
+  s.render(w, "admin_achievements", data)
+}
+
+func (s *Site) adminAchievementCreate(w http.ResponseWriter, r *http.Request) {
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/admin/achievements?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  title := strings.TrimSpace(r.FormValue("title"))
+  description := strings.TrimSpace(r.FormValue("description"))
+  icon := strings.TrimSpace(r.FormValue("icon"))
+  metric := strings.TrimSpace(r.FormValue("metric"))
+  target, _ := strconv.Atoi(r.FormValue("target"))
+  points, _ := strconv.Atoi(r.FormValue("points_reward"))
+  if title == "" || description == "" || icon == "" || target <= 0 {
+    http.Redirect(w, r, "/admin/achievements?error=Заполните%20все%20поля", http.StatusSeeOther)
+    return
+  }
+
+  _, err := s.DB.Exec(
+    `insert into achievements (title, description, icon, points_reward, metric, target)
+     values ($1, $2, $3, $4, $5, $6)
+     on conflict (title)
+     do update set description = excluded.description,
+                   icon = excluded.icon,
+                   points_reward = excluded.points_reward,
+                   metric = excluded.metric,
+                   target = excluded.target`,
+    title,
+    description,
+    icon,
+    points,
+    metric,
+    target,
+  )
+  if err != nil {
+    http.Redirect(w, r, "/admin/achievements?error=Не%20удалось%20сохранить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/achievements?success=Достижение%20сохранено", http.StatusSeeOther)
+}
+
+func (s *Site) adminAchievementUpdate(w http.ResponseWriter, r *http.Request) {
+  achievementID := chi.URLParam(r, "id")
+  if achievementID == "" {
+    http.Redirect(w, r, "/admin/achievements?error=Не%20найдено%20достижение", http.StatusSeeOther)
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/admin/achievements?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+  title := strings.TrimSpace(r.FormValue("title"))
+  description := strings.TrimSpace(r.FormValue("description"))
+  icon := strings.TrimSpace(r.FormValue("icon"))
+  metric := strings.TrimSpace(r.FormValue("metric"))
+  target, _ := strconv.Atoi(r.FormValue("target"))
+  points, _ := strconv.Atoi(r.FormValue("points_reward"))
+
+  _, err := s.DB.Exec(
+    `update achievements
+     set title = coalesce(nullif($1, ''), title),
+         description = coalesce(nullif($2, ''), description),
+         icon = coalesce(nullif($3, ''), icon),
+         points_reward = $4,
+         metric = nullif($5, ''),
+         target = $6
+     where id = $7`,
+    title,
+    description,
+    icon,
+    points,
+    metric,
+    target,
+    achievementID,
+  )
+  if err != nil {
+    http.Redirect(w, r, "/admin/achievements?error=Не%20удалось%20обновить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/achievements?success=Достижение%20обновлено", http.StatusSeeOther)
+}
+
+func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
+  if err := r.ParseMultipartForm(8 << 20); err != nil {
     http.Redirect(w, r, "/admin/exercises?error=Некорректные%20данные", http.StatusSeeOther)
     return
   }
@@ -49,14 +290,18 @@ func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
   rest, _ := strconv.Atoi(r.FormValue("rest_seconds"))
   muscles := parseCSV(r.FormValue("muscle_groups"))
   equipment := parseCSV(r.FormValue("equipment"))
-  video := strings.TrimSpace(r.FormValue("video_url"))
+  imageURL, err := s.saveExerciseImage(r)
+  if err != nil {
+    http.Redirect(w, r, "/admin/exercises?error=Некорректный%20файл%20изображения", http.StatusSeeOther)
+    return
+  }
   if name == "" || description == "" {
     http.Redirect(w, r, "/admin/exercises?error=Заполните%20название%20и%20описание", http.StatusSeeOther)
     return
   }
 
-  _, err := s.DB.Exec(
-    `insert into exercises (name, description, category, difficulty, sets, reps, rest_seconds, muscle_groups, equipment, video_url)
+  _, err = s.DB.Exec(
+    `insert into exercises (name, description, category, difficulty, sets, reps, rest_seconds, muscle_groups, equipment, image_url)
      values ($1, $2, nullif($3, ''), nullif($4, ''), $5, nullif($6, ''), $7, $8, $9, nullif($10, ''))
      on conflict (name)
      do update set description = excluded.description,
@@ -67,7 +312,7 @@ func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
                    rest_seconds = excluded.rest_seconds,
                    muscle_groups = excluded.muscle_groups,
                    equipment = excluded.equipment,
-                   video_url = excluded.video_url`,
+                   image_url = excluded.image_url`,
     name,
     description,
     category,
@@ -77,7 +322,7 @@ func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
     rest,
     muscles,
     equipment,
-    video,
+    imageURL,
   )
   if err != nil {
     http.Redirect(w, r, "/admin/exercises?error=Не%20удалось%20сохранить", http.StatusSeeOther)
@@ -93,7 +338,7 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin/exercises?error=Не%20найдено%20упражнение", http.StatusSeeOther)
     return
   }
-  if err := r.ParseForm(); err != nil {
+  if err := r.ParseMultipartForm(8 << 20); err != nil {
     http.Redirect(w, r, "/admin/exercises?error=Некорректные%20данные", http.StatusSeeOther)
     return
   }
@@ -106,12 +351,17 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
   rest, _ := strconv.Atoi(r.FormValue("rest_seconds"))
   muscles := parseCSV(r.FormValue("muscle_groups"))
   equipment := parseCSV(r.FormValue("equipment"))
-  video := strings.TrimSpace(r.FormValue("video_url"))
-  if video == "" {
-    _ = s.DB.QueryRow(`select coalesce(video_url, '') from exercises where id = $1`, exerciseID).Scan(&video)
+  imageURL, err := s.saveExerciseImage(r)
+  if err != nil {
+    http.Redirect(w, r, "/admin/exercises?error=Некорректный%20файл%20изображения", http.StatusSeeOther)
+    return
+  }
+  if imageURL == "" {
+    _ = s.DB.QueryRow(`select coalesce(image_url, '') from exercises where id = $1`, exerciseID).Scan(&imageURL)
+    imageURL = normalizeImageURL(imageURL)
   }
 
-  _, err := s.DB.Exec(
+  _, err = s.DB.Exec(
     `update exercises
      set name = coalesce(nullif($1, ''), name),
          description = coalesce(nullif($2, ''), description),
@@ -122,7 +372,7 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
          rest_seconds = $7,
          muscle_groups = $8,
          equipment = $9,
-         video_url = nullif($10, ''),
+         image_url = nullif($10, ''),
          created_at = created_at
      where id = $11`,
     name,
@@ -134,7 +384,7 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
     rest,
     muscles,
     equipment,
-    video,
+    imageURL,
     exerciseID,
   )
   if err != nil {
@@ -142,6 +392,108 @@ func (s *Site) adminExerciseUpdate(w http.ResponseWriter, r *http.Request) {
     return
   }
   http.Redirect(w, r, "/admin/exercises?success=Упражнение%20обновлено&ts="+strconv.FormatInt(time.Now().Unix(), 10), http.StatusSeeOther)
+}
+
+func (s *Site) adminExerciseImageDelete(w http.ResponseWriter, r *http.Request) {
+  exerciseID := chi.URLParam(r, "id")
+  if exerciseID == "" {
+    http.Redirect(w, r, "/admin/exercises?error=Не%20найдено%20упражнение", http.StatusSeeOther)
+    return
+  }
+
+  var imageURL string
+  if err := s.DB.QueryRow(`select coalesce(image_url, '') from exercises where id = $1`, exerciseID).Scan(&imageURL); err != nil {
+    http.Redirect(w, r, "/admin/exercises?error=Не%20удалось%20найти%20фото", http.StatusSeeOther)
+    return
+  }
+  imageURL = normalizeImageURL(imageURL)
+
+  if imageURL != "" && strings.HasPrefix(imageURL, "/uploads/") {
+    filename := filepath.Base(imageURL)
+    if filename != "" && filename != "." && filename != "/" {
+      _ = os.Remove(filepath.Join("uploads", filename))
+    }
+  }
+
+  if _, err := s.DB.Exec(`update exercises set image_url = null where id = $1`, exerciseID); err != nil {
+    http.Redirect(w, r, "/admin/exercises?error=Не%20удалось%20удалить%20фото", http.StatusSeeOther)
+    return
+  }
+
+  http.Redirect(w, r, "/admin/exercises?success=Фото%20удалено", http.StatusSeeOther)
+}
+
+func (s *Site) saveExerciseImage(r *http.Request) (string, error) {
+  file, header, err := r.FormFile("image_file")
+  if err != nil {
+    if errors.Is(err, http.ErrMissingFile) {
+      return "", nil
+    }
+    return "", err
+  }
+  defer file.Close()
+
+  headerBuf := make([]byte, 512)
+  n, _ := file.Read(headerBuf)
+  contentType := http.DetectContentType(headerBuf[:n])
+  ext := imageExtension(contentType)
+  if ext == "" && header != nil {
+    ext = strings.ToLower(filepath.Ext(header.Filename))
+    if !isAllowedImageExt(ext) {
+      ext = ""
+    }
+  }
+  if ext == "" {
+    return "", fmt.Errorf("unsupported image type")
+  }
+
+  if err := os.MkdirAll("uploads", 0o755); err != nil {
+    return "", err
+  }
+
+  token, err := randomToken(8)
+  if err != nil {
+    return "", err
+  }
+  filename := "exercise_" + token + ext
+  dstPath := filepath.Join("uploads", filename)
+
+  reader := io.MultiReader(bytes.NewReader(headerBuf[:n]), file)
+  out, err := os.Create(dstPath)
+  if err != nil {
+    return "", err
+  }
+  defer out.Close()
+
+  if _, err := io.Copy(out, reader); err != nil {
+    return "", err
+  }
+
+  return "/uploads/" + filename, nil
+}
+
+func imageExtension(contentType string) string {
+  switch strings.ToLower(contentType) {
+  case "image/jpeg":
+    return ".jpg"
+  case "image/png":
+    return ".png"
+  case "image/webp":
+    return ".webp"
+  case "image/gif":
+    return ".gif"
+  default:
+    return ""
+  }
+}
+
+func isAllowedImageExt(ext string) bool {
+  switch strings.ToLower(ext) {
+  case ".jpg", ".jpeg", ".png", ".webp", ".gif":
+    return true
+  default:
+    return false
+  }
 }
 
 func (s *Site) adminWorkouts(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +682,13 @@ func (s *Site) adminWorkoutExerciseAdd(w http.ResponseWriter, r *http.Request) {
     return
   }
   if order <= 0 {
-    order = 1
+    _ = s.DB.QueryRow(
+      `select coalesce(max(sort_order), 0) + 1 from workout_exercises where workout_id = $1`,
+      workoutID,
+    ).Scan(&order)
+    if order <= 0 {
+      order = 1
+    }
   }
 
   _, err := s.DB.Exec(
@@ -352,7 +710,66 @@ func (s *Site) adminWorkoutExerciseAdd(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin/workouts/"+workoutID+"?error=Не%20удалось%20добавить", http.StatusSeeOther)
     return
   }
+  s.normalizeWorkoutOrder(workoutID)
   http.Redirect(w, r, "/admin/workouts/"+workoutID+"?success=Упражнение%20добавлено", http.StatusSeeOther)
+}
+
+func (s *Site) adminWorkoutExerciseUpdate(w http.ResponseWriter, r *http.Request) {
+  workoutID := chi.URLParam(r, "id")
+  exerciseID := chi.URLParam(r, "exerciseId")
+  if workoutID == "" || exerciseID == "" {
+    http.Redirect(w, r, "/admin/workouts", http.StatusSeeOther)
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    http.Redirect(w, r, "/admin/workouts/"+workoutID+"?error=Некорректные%20данные", http.StatusSeeOther)
+    return
+  }
+
+  newExerciseID := strings.TrimSpace(r.FormValue("exercise_id"))
+  if newExerciseID == "" {
+    newExerciseID = exerciseID
+  }
+  order, _ := strconv.Atoi(r.FormValue("sort_order"))
+  if order <= 0 {
+    _ = s.DB.QueryRow(
+      `select coalesce(sort_order, 1) from workout_exercises where workout_id = $1 and exercise_id = $2`,
+      workoutID,
+      exerciseID,
+    ).Scan(&order)
+    if order <= 0 {
+      order = 1
+    }
+  }
+  sets, _ := strconv.Atoi(r.FormValue("sets"))
+  reps := strings.TrimSpace(r.FormValue("reps"))
+  rest, _ := strconv.Atoi(r.FormValue("rest_seconds"))
+
+  if newExerciseID != exerciseID {
+    _, _ = s.DB.Exec(`delete from workout_exercises where workout_id = $1 and exercise_id = $2`, workoutID, exerciseID)
+  }
+
+  _, err := s.DB.Exec(
+    `insert into workout_exercises (workout_id, exercise_id, sort_order, sets, reps, rest_seconds)
+     values ($1, $2, $3, nullif($4, 0), nullif($5, ''), nullif($6, 0))
+     on conflict (workout_id, exercise_id)
+     do update set sort_order = excluded.sort_order,
+                   sets = excluded.sets,
+                   reps = excluded.reps,
+                   rest_seconds = excluded.rest_seconds`,
+    workoutID,
+    newExerciseID,
+    order,
+    sets,
+    reps,
+    rest,
+  )
+  if err != nil {
+    http.Redirect(w, r, "/admin/workouts/"+workoutID+"?error=Не%20удалось%20обновить", http.StatusSeeOther)
+    return
+  }
+  s.normalizeWorkoutOrder(workoutID)
+  http.Redirect(w, r, "/admin/workouts/"+workoutID+"?success=Упражнение%20обновлено", http.StatusSeeOther)
 }
 
 func (s *Site) adminWorkoutExerciseRemove(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +780,37 @@ func (s *Site) adminWorkoutExerciseRemove(w http.ResponseWriter, r *http.Request
     return
   }
   _, _ = s.DB.Exec(`delete from workout_exercises where workout_id = $1 and exercise_id = $2`, workoutID, exerciseID)
+  s.normalizeWorkoutOrder(workoutID)
   http.Redirect(w, r, "/admin/workouts/"+workoutID+"?success=Упражнение%20удалено", http.StatusSeeOther)
+}
+
+func (s *Site) normalizeWorkoutOrder(workoutID string) {
+  rows, err := s.DB.Query(
+    `select exercise_id
+     from workout_exercises
+     where workout_id = $1
+     order by sort_order, exercise_id`,
+    workoutID,
+  )
+  if err != nil {
+    return
+  }
+  defer rows.Close()
+
+  order := 1
+  for rows.Next() {
+    var exerciseID string
+    _ = rows.Scan(&exerciseID)
+    _, _ = s.DB.Exec(
+      `update workout_exercises
+       set sort_order = $1
+       where workout_id = $2 and exercise_id = $3`,
+      order,
+      workoutID,
+      exerciseID,
+    )
+    order++
+  }
 }
 
 func (s *Site) adminPrograms(w http.ResponseWriter, r *http.Request) {
@@ -451,11 +898,12 @@ func (s *Site) adminProgramUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
-  programID := chi.URLParam(r, "id")
-  if programID == "" {
-    http.NotFound(w, r)
+  rawParam := strings.TrimSpace(chi.URLParam(r, "id"))
+  if rawParam == "" {
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
   }
+  programID := normalizeResourceID(rawParam)
   var program programCard
   err := s.DB.QueryRow(
     `select id, name, description, coalesce(muscle_groups, '{}')
@@ -463,8 +911,22 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
     programID,
   ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
   if err != nil {
-    http.NotFound(w, r)
-    return
+    nameParam := rawParam
+    if decoded, decodeErr := url.PathUnescape(nameParam); decodeErr == nil {
+      nameParam = decoded
+    }
+    nameParam = strings.TrimSpace(nameParam)
+    if nameParam != "" {
+      err = s.DB.QueryRow(
+        `select id, name, description, coalesce(muscle_groups, '{}')
+         from programs where lower(name) = lower($1)`,
+        nameParam,
+      ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
+    }
+    if err != nil {
+      http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
+      return
+    }
   }
 
   rows, err := s.DB.Query(

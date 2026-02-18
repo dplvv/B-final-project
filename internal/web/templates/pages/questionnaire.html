@@ -77,12 +77,22 @@
     <div class="card quiz-step" data-step="1" hidden>
       <div class="card-title">Оборудование и предпочтения</div>
       <div class="form-group" style="margin-top: 16px;">
-        <label>Инвентарь (через запятую)</label>
-        <input type="text" name="equipment" placeholder="Коврик, резинка, стул" value="{{ join .Questionnaire.Equipment ", " }}" />
+        <label>Инвентарь</label>
+        <select name="equipment" multiple>
+          {{ range .EquipmentOptions }}
+            <option value="{{ . }}" {{ if contains $.Questionnaire.Equipment . }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Можно выбрать несколько вариантов. Если инвентаря нет, выберите «Без инвентаря».</div>
       </div>
       <div class="form-group">
         <label>Предпочтения по формату</label>
-        <textarea name="preferences" rows="3" placeholder="Например: больше растяжки, минимум кардио">{{ .Questionnaire.Preferences }}</textarea>
+        <select name="preferences" multiple>
+          {{ range .PreferenceOptions }}
+            <option value="{{ . }}" {{ if contains $.SelectedPreferences . }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Выберите фокус занятий, чтобы подобрать тренировки точнее.</div>
       </div>
     </div>
 

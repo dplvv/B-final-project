@@ -47,7 +47,7 @@ create table if not exists exercises (
   rest_seconds int,
   muscle_groups text[] not null default '{}',
   equipment text[] not null default '{}',
-  video_url text,
+  image_url text,
   created_at timestamptz not null default now()
 );
 
@@ -137,6 +137,7 @@ create table if not exists workout_sessions (
   workout_id uuid references workouts(id) on delete cascade,
   started_at timestamptz not null default now(),
   completed_at timestamptz,
+  last_set_completed_at timestamptz,
   duration_minutes int,
   total_exercises int,
   completed_exercises int,
@@ -157,6 +158,16 @@ create table if not exists workout_session_exercises (
   completed boolean not null default false
 );
 
+create table if not exists workout_session_sets (
+  id uuid primary key default uuid_generate_v4(),
+  session_id uuid references workout_sessions(id) on delete cascade,
+  session_exercise_id uuid references workout_session_exercises(id) on delete cascade,
+  set_index int not null,
+  started_at timestamptz not null,
+  completed_at timestamptz not null,
+  duration_seconds int not null
+);
+
 create table if not exists workout_session_feedback (
   session_id uuid primary key references workout_sessions(id) on delete cascade,
   user_id uuid references users(id) on delete cascade,
@@ -174,6 +185,8 @@ create table if not exists achievements (
   description text not null,
   icon text not null,
   points_reward int not null default 0,
+  metric text,
+  target int,
   created_at timestamptz not null default now()
 );
 
@@ -234,6 +247,21 @@ create table if not exists support_tickets (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists support_ticket_messages (
+  id uuid primary key default uuid_generate_v4(),
+  ticket_id uuid references support_tickets(id) on delete cascade,
+  sender_id uuid references users(id) on delete set null,
+  sender_role text not null,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table exercises add column if not exists image_url text;
+alter table exercises drop column if exists video_url;
+alter table workout_sessions add column if not exists last_set_completed_at timestamptz;
+alter table achievements add column if not exists metric text;
+alter table achievements add column if not exists target int;
+
 create table if not exists password_reset_requests (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete cascade,
@@ -253,10 +281,13 @@ create table if not exists sessions (
 
 create index if not exists idx_sessions_token on sessions(token);
 create index if not exists idx_workout_sessions_user on workout_sessions(user_id);
+create index if not exists idx_workout_session_sets_session on workout_session_sets(session_id);
+create index if not exists idx_workout_session_sets_exercise on workout_session_sets(session_exercise_id);
 create index if not exists idx_plan_user on training_plans(user_id);
 create index if not exists idx_plan_workouts_plan on training_plan_workouts(plan_id);
 create index if not exists idx_plan_workouts_status on training_plan_workouts(status);
 create index if not exists idx_plan_changes_plan on training_plan_changes(plan_id);
+create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
 create index if not exists idx_password_reset_status on password_reset_requests(status);
 
 -- +migrate Down

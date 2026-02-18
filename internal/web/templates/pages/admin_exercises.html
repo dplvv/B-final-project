@@ -18,7 +18,7 @@
   <div class="card-header">
     <div class="card-title">Добавить упражнение</div>
   </div>
-  <form class="form" method="post" action="/admin/exercises">
+  <form class="form" method="post" action="/admin/exercises" enctype="multipart/form-data">
     <div class="grid cols-2">
       <div class="form-group">
         <label>Название</label>
@@ -62,8 +62,9 @@
         <textarea name="description" rows="3" required></textarea>
       </div>
       <div class="form-group" style="grid-column: span 2;">
-        <label>YouTube ссылка</label>
-        <input name="video_url" placeholder="https://www.youtube.com/watch?v=..." />
+        <label>Фото упражнения</label>
+        <input type="file" name="image_file" accept="image/*" />
+        <div class="muted" style="margin-top: 6px;">Поддерживаются JPG, PNG, WEBP, GIF.</div>
       </div>
     </div>
     <button class="button primary" type="submit">Сохранить</button>
@@ -77,7 +78,7 @@
   <div class="grid" style="gap: 12px;">
     {{ range .Exercises }}
       <div class="card softer">
-        <form class="form" method="post" action="/admin/exercises/{{ .ID }}/update">
+        <form class="form" method="post" action="/admin/exercises/{{ .ID }}/update" enctype="multipart/form-data">
           <div class="grid cols-2">
             <div class="form-group">
               <label>Название</label>
@@ -116,13 +117,16 @@
               <textarea name="description" rows="2">{{ .Description }}</textarea>
             </div>
             <div class="form-group" style="grid-column: span 2;">
-              <label>YouTube ссылка</label>
-              <input name="video_url" value="{{ .VideoURL }}" />
-              {{ if .VideoURL }}
-                <div class="muted" style="margin-top: 6px;">
-                  <a href="{{ .VideoURL }}" target="_blank" rel="noreferrer">Открыть видео</a>
+              <label>Фото упражнения</label>
+              <input type="file" name="image_file" accept="image/*" />
+              <div class="muted" style="margin-top: 6px;">Если не менять фото — оставьте пустым.</div>
+              {{ if .ImageURL }}
+                <div style="margin-top: 8px;">
+                  <img src="{{ .ImageURL }}" alt="Фото упражнения" style="max-width: 220px; border-radius: 12px; border: 1px solid var(--border);" />
                 </div>
-                <div class="muted" style="margin-top: 4px;">Сохранено: {{ .VideoURL }}</div>
+                <div style="margin-top: 10px;">
+                  <button class="button danger" type="submit" formnovalidate formaction="/admin/exercises/{{ .ID }}/image/delete">Удалить фото</button>
+                </div>
               {{ end }}
             </div>
           </div>

@@ -15,30 +15,54 @@
   <div class="progress"><span style="width: {{ .Session.ProgressPercent }}%;"></span></div>
 </div>
 
-<div class="grid cols-2" style="margin-bottom: 20px;">
-  <div class="card timer-card" data-duration-minutes="{{ if gt .Session.DurationMinutes 0 }}{{ .Session.DurationMinutes }}{{ else }}30{{ end }}">
-    <div class="card-header">
-      <div class="card-title">Таймер тренировки</div>
-      <span class="badge">Общее время</span>
+{{ if .Session.Completed }}
+  <div class="grid cols-2" style="margin-bottom: 20px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Время выполнения</div>
+      </div>
+      <div class="info-list">
+        <div><strong>Всего:</strong> {{ formatSeconds .Session.TotalSeconds }}</div>
+        <div><strong>Старт:</strong> {{ .Session.StartedAt }}</div>
+        {{ if .Session.CompletedAt }}<div><strong>Завершение:</strong> {{ .Session.CompletedAt }}</div>{{ end }}
+      </div>
     </div>
-    <div class="timer-display" id="workout-timer">00:00</div>
-    <div class="timer-controls">
-      <button class="button primary" type="button" id="workout-start">Начать тренировку</button>
-      <button class="button secondary" type="button" id="timer-pause">Пауза</button>
-      <button class="button secondary" type="button" id="timer-reset">Сброс</button>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Подсказки</div>
+      </div>
+      <ul class="guide-list">
+        <li>Сравнивайте время подходов между собой — это помогает видеть прогресс.</li>
+        <li>При резком росте времени или дискомфорте укажите это в обратной связи.</li>
+      </ul>
     </div>
   </div>
-  <div class="card timer-card" data-rest-seconds="{{ if .Session.CurrentExercise }}{{ .Session.CurrentExercise.Rest }}{{ else }}60{{ end }}">
-    <div class="card-header">
-      <div class="card-title">Таймер отдыха</div>
-      <span class="badge">Между подходами</span>
+{{ else }}
+  <div class="grid cols-2" style="margin-bottom: 20px;">
+    <div class="card timer-card" data-duration-minutes="{{ if gt .Session.DurationMinutes 0 }}{{ .Session.DurationMinutes }}{{ else }}30{{ end }}">
+      <div class="card-header">
+        <div class="card-title">Время тренировки</div>
+        <span class="badge">Сессия</span>
+      </div>
+      <div class="timer-display" id="workout-timer">00:00</div>
+      <div class="timer-controls">
+        <button class="button primary" type="button" id="workout-start">Начать тренировку</button>
+        <button class="button secondary" type="button" id="timer-pause">Пауза</button>
+        <button class="button secondary" type="button" id="timer-reset">Сброс</button>
+      </div>
     </div>
-    <div class="timer-display" id="rest-timer">00:00</div>
-    <div class="timer-controls">
-      <button class="button secondary" type="button" id="rest-reset">Сброс</button>
+    <div class="card timer-card" data-rest-seconds="{{ if .Session.CurrentExercise }}{{ .Session.CurrentExercise.Rest }}{{ else }}60{{ end }}">
+      <div class="card-header">
+        <div class="card-title">Отдых</div>
+        <span class="badge">Между подходами</span>
+      </div>
+      <div class="timer-display" id="rest-timer">00:00</div>
+      <div class="timer-controls">
+        <button class="button secondary" type="button" id="rest-reset">Сброс</button>
+      </div>
     </div>
   </div>
-</div>
+{{ end }}
 
 {{ if .Session.Completed }}
   <div class="card" style="margin-bottom: 20px;">
@@ -120,13 +144,11 @@
         <span class="badge">{{ .Session.CurrentExercise.Reps }}</span>
         <span class="badge">Отдых {{ .Session.CurrentExercise.Rest }} сек</span>
       </div>
-      <div style="display:flex; gap:12px; flex-wrap: wrap; margin-bottom: 12px;">
-        <button class="button secondary" type="button" id="start-set-btn">Начать подход</button>
-      </div>
-      <form method="post" action="/sessions/{{ .Session.ID }}/set" id="complete-set-form" data-rest-seconds="{{ .Session.CurrentExercise.Rest }}" style="display:flex; gap:12px;">
-        <button class="button primary" type="submit">Завершить подход</button>
+      <form method="post" action="/sessions/{{ .Session.ID }}/set" id="complete-set-form" data-rest-seconds="{{ .Session.CurrentExercise.Rest }}" style="display:flex; gap:12px; flex-wrap: wrap;">
+        <button class="button primary" type="submit">Подход выполнен</button>
         <button class="button secondary" type="submit" formaction="/sessions/{{ .Session.ID }}/complete">Завершить тренировку</button>
       </form>
+      <div class="muted" style="margin-top: 10px;">После завершения подхода запустится таймер отдыха.</div>
     </div>
   {{ end }}
 {{ end }}
@@ -141,6 +163,7 @@
         <th>Упражнение</th>
         <th>Подходы</th>
         <th>Повторы</th>
+        <th>Время</th>
         <th>Статус</th>
       </tr>
     </thead>
@@ -150,6 +173,21 @@
           <td>{{ .Name }}</td>
           <td>{{ .CompletedSets }} / {{ .Sets }}</td>
           <td>{{ .Reps }}</td>
+          <td>
+            {{ if gt .TotalSeconds 0 }}
+              <div>{{ formatSeconds .TotalSeconds }}</div>
+              {{ if .SetDurations }}
+                <div class="muted" style="margin-top: 4px;">
+                  Подходы:
+                  {{ range $i, $d := .SetDurations }}
+                    {{ if $i }}, {{ end }}{{ formatSeconds $d }}
+                  {{ end }}
+                </div>
+              {{ end }}
+            {{ else }}
+              —
+            {{ end }}
+          </td>
           <td>{{ if .Completed }}Готово{{ else }}В процессе{{ end }}</td>
         </tr>
       {{ end }}
@@ -359,6 +397,7 @@
 
     var sessionID = "{{ .Session.ID }}";
     var sessionCompleted = {{ if .Session.Completed }}true{{ else }}false{{ end }};
+    var startBtn = document.getElementById('workout-start');
     var workoutCard = document.querySelector('.timer-card[data-duration-minutes]');
     var totalMinutes = workoutCard ? parseInt(workoutCard.getAttribute('data-duration-minutes') || '30', 10) : 30;
     var workoutTimer = setupWorkoutTimer(sessionID, totalMinutes * 60);
@@ -381,16 +420,6 @@
         }
       }
       var restTimer = setupCountdown('rest-timer', 'rest-reset', rest, initialRemaining, Boolean(initialRemaining));
-      var startSetBtn = document.getElementById('start-set-btn');
-      if (startSetBtn) {
-        startSetBtn.addEventListener('click', function() {
-          localStorage.removeItem(activeKey);
-          localStorage.removeItem(restKey);
-          if (restTimer) {
-            restTimer.stop();
-          }
-        });
-      }
     }
 
     var completeForm = document.getElementById('complete-set-form');
@@ -414,7 +443,6 @@
       }
     }
 
-    var startBtn = document.getElementById('workout-start');
     if (completeForm) {
       var buttons = completeForm.querySelectorAll('button');
       var startedKey = 'workoutTimer:' + sessionID + ':started';

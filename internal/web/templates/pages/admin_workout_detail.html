@@ -54,38 +54,48 @@
   <div class="card-header">
     <div class="card-title">Упражнения тренировки</div>
   </div>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Порядок</th>
-        <th>Упражнение</th>
-        <th>Подходы</th>
-        <th>Повторы</th>
-        <th>Отдых</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range .WorkoutExercises }}
-        <tr>
-          <td>{{ .Order }}</td>
-          <td>{{ .Name }}</td>
-          <td>{{ .Sets }}</td>
-          <td>{{ .Reps }}</td>
-          <td>{{ .Rest }} сек</td>
-          <td>
-            <form method="post" action="/admin/workouts/{{ $.Workout.ID }}/exercises/{{ .ID }}/remove">
-              <button class="button secondary" type="submit">Удалить</button>
-            </form>
-          </td>
-        </tr>
-      {{ else }}
-        <tr>
-          <td colspan="6">Упражнений пока нет.</td>
-        </tr>
-      {{ end }}
-    </tbody>
-  </table>
+  <div class="grid" style="gap: 12px;">
+    {{ range .WorkoutExercises }}
+      {{ $current := . }}
+      <form class="card softer form" method="post" action="/admin/workouts/{{ $.Workout.ID }}/exercises/{{ .ID }}/update">
+        <div class="grid cols-3">
+          <div class="form-group">
+            <label>Порядок</label>
+            <input type="number" name="sort_order" min="1" value="{{ .Order }}" />
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Упражнение</label>
+            <select name="exercise_id">
+              {{ range $.Exercises }}
+                <option value="{{ .ID }}" {{ if eq .ID $current.ID }}selected{{ end }}>{{ .Name }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Подходы</label>
+            <input type="number" name="sets" min="1" value="{{ .Sets }}" />
+          </div>
+          <div class="form-group">
+            <label>Повторы</label>
+            <input name="reps" value="{{ .Reps }}" />
+          </div>
+          <div class="form-group">
+            <label>Отдых (сек)</label>
+            <input type="number" name="rest_seconds" min="0" value="{{ .Rest }}" />
+          </div>
+        </div>
+        <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+          <button class="button secondary" type="submit">Сохранить</button>
+          <button class="button danger" type="submit" formaction="/admin/workouts/{{ $.Workout.ID }}/exercises/{{ .ID }}/remove">Удалить</button>
+        </div>
+      </form>
+    {{ else }}
+      <div class="empty-state">
+        <div class="empty-title">Упражнений пока нет</div>
+        <div class="muted">Добавьте упражнения выше.</div>
+      </div>
+    {{ end }}
+  </div>
 </div>
 {{ end }}
 

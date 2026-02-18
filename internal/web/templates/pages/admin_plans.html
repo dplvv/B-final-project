@@ -35,7 +35,7 @@
           <td>{{ if .PlanID }}Есть{{ else }}Нет{{ end }}</td>
           <td>{{ if .Goal }}{{ .Goal }}{{ else }}—{{ end }}</td>
           <td>{{ if .Level }}{{ .Level }}{{ else }}—{{ end }}</td>
-          <td>{{ if .Status }}{{ .Status }}{{ else }}—{{ end }}</td>
+          <td>{{ if .Status }}{{ statusLabel .Status }}{{ else }}—{{ end }}</td>
           <td><a class="button link" href="/admin/plans/{{ .UserID }}">Редактировать</a></td>
         </tr>
       {{ else }}
