@@ -276,6 +276,20 @@ func (s *Site) adminAchievementUpdate(w http.ResponseWriter, r *http.Request) {
   http.Redirect(w, r, "/admin/achievements?success=Достижение%20обновлено", http.StatusSeeOther)
 }
 
+func (s *Site) adminAchievementDelete(w http.ResponseWriter, r *http.Request) {
+  achievementID := chi.URLParam(r, "id")
+  if achievementID == "" {
+    http.Redirect(w, r, "/admin/achievements?error=Не%20найдено%20достижение", http.StatusSeeOther)
+    return
+  }
+  _, err := s.DB.Exec(`delete from achievements where id = $1`, achievementID)
+  if err != nil {
+    http.Redirect(w, r, "/admin/achievements?error=Не%20удалось%20удалить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/achievements?success=Достижение%20удалено", http.StatusSeeOther)
+}
+
 func (s *Site) adminExerciseCreate(w http.ResponseWriter, r *http.Request) {
   if err := r.ParseMultipartForm(8 << 20); err != nil {
     http.Redirect(w, r, "/admin/exercises?error=Некорректные%20данные", http.StatusSeeOther)
@@ -866,8 +880,78 @@ func (s *Site) adminProgramCreate(w http.ResponseWriter, r *http.Request) {
   http.Redirect(w, r, "/admin/programs?success=Программа%20сохранена", http.StatusSeeOther)
 }
 
+func (s *Site) resolveProgramID(rawParam string) string {
+  rawParam = strings.TrimSpace(rawParam)
+  if rawParam == "" {
+    return ""
+  }
+
+  var resolvedID string
+  err := s.DB.QueryRow(`select id from programs where id = $1`, rawParam).Scan(&resolvedID)
+  if err == nil {
+    return resolvedID
+  }
+
+  programID := normalizeResourceID(rawParam)
+  if programID != rawParam {
+    err = s.DB.QueryRow(`select id from programs where id = $1`, programID).Scan(&resolvedID)
+    if err == nil {
+      return resolvedID
+    }
+  }
+
+  nameParam := rawParam
+  if decoded, decodeErr := url.PathUnescape(nameParam); decodeErr == nil {
+    nameParam = decoded
+  }
+  nameParam = strings.TrimSpace(nameParam)
+  if nameParam == "" {
+    return ""
+  }
+
+  _ = s.DB.QueryRow(`select id from programs where lower(name) = lower($1)`, nameParam).Scan(&resolvedID)
+  return resolvedID
+}
+
+func (s *Site) resolveProgramIDFromRequest(r *http.Request) string {
+  if r == nil {
+    return ""
+  }
+
+  if resolved := s.resolveProgramID(chi.URLParam(r, "id")); resolved != "" {
+    return resolved
+  }
+  if resolved := s.resolveProgramID(strings.TrimSpace(r.URL.Query().Get("program_id"))); resolved != "" {
+    return resolved
+  }
+
+  _ = r.ParseForm()
+  if resolved := s.resolveProgramID(strings.TrimSpace(r.FormValue("program_id"))); resolved != "" {
+    return resolved
+  }
+
+  ref := strings.TrimSpace(r.Referer())
+  if ref == "" {
+    return ""
+  }
+  parsed, err := url.Parse(ref)
+  if err != nil {
+    return ""
+  }
+  parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+  for i := 0; i+1 < len(parts); i++ {
+    if parts[i] == "programs" {
+      if resolved := s.resolveProgramID(parts[i+1]); resolved != "" {
+        return resolved
+      }
+      break
+    }
+  }
+  return ""
+}
+
 func (s *Site) adminProgramUpdate(w http.ResponseWriter, r *http.Request) {
-  programID := chi.URLParam(r, "id")
+  programID := s.resolveProgramIDFromRequest(r)
   if programID == "" {
     http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
@@ -903,7 +987,11 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
   }
-  programID := normalizeResourceID(rawParam)
+  programID := s.resolveProgramID(rawParam)
+  if programID == "" {
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
+    return
+  }
   var program programCard
   err := s.DB.QueryRow(
     `select id, name, description, coalesce(muscle_groups, '{}')
@@ -911,22 +999,8 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
     programID,
   ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
   if err != nil {
-    nameParam := rawParam
-    if decoded, decodeErr := url.PathUnescape(nameParam); decodeErr == nil {
-      nameParam = decoded
-    }
-    nameParam = strings.TrimSpace(nameParam)
-    if nameParam != "" {
-      err = s.DB.QueryRow(
-        `select id, name, description, coalesce(muscle_groups, '{}')
-         from programs where lower(name) = lower($1)`,
-        nameParam,
-      ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
-    }
-    if err != nil {
-      http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
-      return
-    }
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
+    return
   }
 
   rows, err := s.DB.Query(
@@ -935,7 +1009,7 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
      join workouts w on w.id = pw.workout_id
      where pw.program_id = $1
      order by pw.sort_order`,
-    programID,
+    program.ID,
   )
   type programWorkoutView struct {
     ID       string
@@ -977,9 +1051,9 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) adminProgramWorkoutAdd(w http.ResponseWriter, r *http.Request) {
-  programID := chi.URLParam(r, "id")
+  programID := s.resolveProgramIDFromRequest(r)
   if programID == "" {
-    http.Redirect(w, r, "/admin/programs", http.StatusSeeOther)
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
   }
   if err := r.ParseForm(); err != nil {
@@ -1012,10 +1086,10 @@ func (s *Site) adminProgramWorkoutAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) adminProgramWorkoutRemove(w http.ResponseWriter, r *http.Request) {
-  programID := chi.URLParam(r, "id")
+  programID := s.resolveProgramIDFromRequest(r)
   workoutID := chi.URLParam(r, "workoutId")
   if programID == "" || workoutID == "" {
-    http.Redirect(w, r, "/admin/programs", http.StatusSeeOther)
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
   }
   _, _ = s.DB.Exec(`delete from program_workouts where program_id = $1 and workout_id = $2`, programID, workoutID)

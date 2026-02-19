@@ -124,14 +124,8 @@ func (s *Site) questionnairePage(w http.ResponseWriter, r *http.Request) {
   data["EditMode"] = editMode
   data["ReturnTo"] = returnTo
 
-  var restrictions []string
-  var doctorApproval bool
-  _ = s.DB.QueryRow(
-    `select restrictions, doctor_approval from medical_info where user_id = $1`,
-    user.ID,
-  ).Scan(&restrictions, &doctorApproval)
-  data["SelectedRestrictions"] = restrictions
-  data["DoctorApproval"] = doctorApproval
+  data["SelectedRestrictions"] = s.loadRestrictions(user.ID)
+  data["DoctorApproval"] = s.loadDoctorApproval(user.ID)
 
   s.render(w, "questionnaire", data)
 }
@@ -151,12 +145,8 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
     equipment = []string{}
   }
   equipment = normalizeEquipmentSelection(equipment)
-  preferences := ""
-  if prefs := r.Form["preferences"]; len(prefs) > 0 {
-    preferences = strings.Join(prefs, ", ")
-  } else {
-    preferences = strings.TrimSpace(r.FormValue("preferences"))
-  }
+  selectedPreferences := normalizePreferenceSelection(r.Form["preferences"])
+  preferences := strings.Join(selectedPreferences, ", ")
 
   q := questionnaireData{
     Goal:           strings.TrimSpace(r.FormValue("goal")),
@@ -210,24 +200,34 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
     user.ID,
   )
 
-  restrictions := r.Form["restrictions"]
-  if restrictions == nil {
-    restrictions = []string{}
-  }
-  _, _ = s.DB.Exec(
+  restrictions := normalizeRestrictionSelection(r.Form["restrictions"])
+  restrictionsCSV := strings.Join(restrictions, ",")
+  if _, err := s.DB.Exec(
     `insert into medical_info (user_id, restrictions, updated_at)
-     values ($1, $2, now())
+     values (
+       $1,
+       case when trim($2) = '' then '{}'::text[] else string_to_array($2, ',') end,
+       now()
+     )
      on conflict (user_id)
-     do update set restrictions = excluded.restrictions, updated_at = now()`,
+     do update set restrictions = case when trim($2) = '' then '{}'::text[] else string_to_array($2, ',') end,
+                   updated_at = now()`,
     user.ID,
-    restrictions,
-  )
+    restrictionsCSV,
+  ); err != nil {
+    http.Error(w, "Ошибка сохранения ограничений", http.StatusInternalServerError)
+    return
+  }
 
   if questionnaireChanged(previous, q, prevRestrictions, restrictions) {
     if plan, err := s.getActivePlan(user.ID); err == nil && plan != nil {
-      _, _ = s.DB.Exec(`update training_plans set status = 'archived', updated_at = now() where id = $1`, plan.ID)
+      if !adminPauseLockedForRole(user.Role, plan.Status, plan.PausedReason) {
+        _, _ = s.DB.Exec(`update training_plans set status = 'archived', updated_at = now() where id = $1`, plan.ID)
+        _, _ = s.ensurePlan(user.ID)
+      }
+    } else {
+      _, _ = s.ensurePlan(user.ID)
     }
-    _, _ = s.ensurePlan(user.ID)
   }
 
   returnTo := strings.TrimSpace(r.FormValue("return_to"))
@@ -287,6 +287,8 @@ func (s *Site) planPage(w http.ResponseWriter, r *http.Request) {
   data["NextWorkout"] = nextWorkout
   data["PlanPaused"] = plan.Status == "paused"
   data["PlanPausedReason"] = plan.PausedReason
+  data["PlanAdminLocked"] = adminPauseLockedForRole(user.Role, plan.Status, plan.PausedReason)
+  data["PlanLaunchBlocked"] = planLaunchBlockedForRole(user.Role, plan.Status, plan.PausedReason)
   data["Questionnaire"] = q
   data["Restrictions"] = restrictions
   data["DoctorApproval"] = doctorApproval
@@ -300,6 +302,10 @@ func (s *Site) planRegenerate(w http.ResponseWriter, r *http.Request) {
   }
 
   if plan, err := s.getActivePlan(user.ID); err == nil && plan != nil {
+    if adminPauseLockedForRole(user.Role, plan.Status, plan.PausedReason) {
+      http.Redirect(w, r, "/program?paused=1", http.StatusSeeOther)
+      return
+    }
     _, _ = s.DB.Exec(`update training_plans set status = 'archived', updated_at = now() where id = $1`, plan.ID)
   }
 
@@ -337,11 +343,12 @@ func (s *Site) planWorkoutStart(w http.ResponseWriter, r *http.Request) {
   }
 
   var planStatus string
+  var pausedReason string
   _ = s.DB.QueryRow(
-    `select status from training_plans where id = $1`,
+    `select status, coalesce(paused_reason, '') from training_plans where id = $1`,
     planID,
-  ).Scan(&planStatus)
-  if planStatus == "paused" {
+  ).Scan(&planStatus, &pausedReason)
+  if planLaunchBlockedForRole(user.Role, planStatus, pausedReason) {
     http.Redirect(w, r, "/program?paused=1", http.StatusSeeOther)
     return
   }
@@ -471,6 +478,9 @@ func (s *Site) sessionFeedback(w http.ResponseWriter, r *http.Request) {
   )
 
   planID := s.planIDBySession(sessionID)
+  if planID == "" {
+    planID = s.attachSessionToPlan(user.ID, sessionID)
+  }
   if planID != "" {
     s.applyAdaptation(user.ID, planID, "feedback")
   }
@@ -484,14 +494,21 @@ func (s *Site) loadNotifications(userID string) []planChangeView {
     Reason string
   }
   entries := []historyEntry{}
+  clearedAt := time.Unix(0, 0).UTC()
+  _ = s.DB.QueryRow(
+    `select coalesce(notifications_cleared_at, to_timestamp(0))
+     from user_profiles
+     where user_id = $1`,
+    userID,
+  ).Scan(&clearedAt)
 
   var rows, err = s.DB.Query(
     `select changed_at, reason
      from training_plan_changes
-     where user_id = $1
-     order by changed_at desc
-     limit 10`,
+     where user_id = $1 and changed_at > $2
+     order by changed_at desc`,
     userID,
+    clearedAt,
   )
   if err == nil {
     defer rows.Close()
@@ -507,10 +524,12 @@ func (s *Site) loadNotifications(userID string) []planChangeView {
     `select rr.status, r.title, coalesce(rr.handled_at, rr.redeemed_at)
      from reward_redemptions rr
      join rewards r on r.id = rr.reward_id
-     where rr.user_id = $1 and rr.status in ('approved', 'rejected')
-     order by coalesce(rr.handled_at, rr.redeemed_at) desc
-     limit 10`,
+     where rr.user_id = $1
+       and rr.status in ('approved', 'rejected')
+       and coalesce(rr.handled_at, rr.redeemed_at) > $2
+     order by coalesce(rr.handled_at, rr.redeemed_at) desc`,
     userID,
+    clearedAt,
   )
   if err == nil {
     defer rows.Close()
@@ -533,9 +552,6 @@ func (s *Site) loadNotifications(userID string) []planChangeView {
     return entries[i].When.After(entries[j].When)
   })
 
-  if len(entries) > 6 {
-    entries = entries[:6]
-  }
   notifications := make([]planChangeView, 0, len(entries))
   for _, entry := range entries {
     notifications = append(notifications, planChangeView{
@@ -959,7 +975,7 @@ func (s *Site) workoutAllowed(workoutID string, restrictions []string, equipment
   restrictedCategories := restrictionCategories(restrictions)
 
   rows, err := s.DB.Query(
-    `select coalesce(category, ''), equipment from exercises e
+    `select coalesce(category, ''), coalesce(array_to_string(equipment, ','), '') from exercises e
      join workout_exercises we on we.exercise_id = e.id
      where we.workout_id = $1`,
     workoutID,
@@ -971,8 +987,9 @@ func (s *Site) workoutAllowed(workoutID string, restrictions []string, equipment
 
   for rows.Next() {
     var category string
-    var equip []string
-    _ = rows.Scan(&category, &equip)
+    var equipRaw string
+    _ = rows.Scan(&category, &equipRaw)
+    equip := parseCSV(equipRaw)
     if category != "" {
       if restrictedCategories[category] {
         return false
@@ -990,22 +1007,37 @@ func (s *Site) workoutAllowed(workoutID string, restrictions []string, equipment
 
 func (s *Site) applyAdaptation(userID, planID, trigger string) {
   plan, err := s.getActivePlan(userID)
-  if err != nil || plan == nil {
+  if err != nil || plan == nil || plan.ID != planID {
     return
   }
 
-  var lastChange time.Time
+  var skipped int
   _ = s.DB.QueryRow(
-    `select coalesce(max(changed_at), to_timestamp(0))
-     from training_plan_changes
-     where plan_id = $1 and reason_code in ('progression', 'regression', 'warning', 'missed')`,
+    `select count(*) from training_plan_workouts
+     where plan_id = $1 and status = 'skipped' and scheduled_date >= current_date - interval '7 days'`,
     planID,
-  ).Scan(&lastChange)
-  if trigger == "feedback" && time.Since(lastChange) < 7*24*time.Hour {
+  ).Scan(&skipped)
+  if trigger == "skip" {
+    if skipped < 2 {
+      return
+    }
+    before := s.planSnapshot(planID)
+    result, _ := s.DB.Exec(
+      `update training_plan_workouts
+       set scheduled_date = scheduled_date + interval '7 days'
+       where plan_id = $1 and status = 'pending' and scheduled_date is not null`,
+      planID,
+    )
+    if affectedRows(result) == 0 {
+      return
+    }
+    after := s.planSnapshot(planID)
+    s.logPlanChange(userID, planID, "missed", "Есть пропуски: план перераспределён", before, after)
     return
   }
-
-  before := s.planSnapshot(planID)
+  if trigger != "feedback" {
+    return
+  }
 
   type feedbackSnapshot struct {
     Pain      int
@@ -1023,11 +1055,14 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
 
   rows, err := s.DB.Query(
     `select coalesce(pain_level, 0), coalesce(tolerance, 0), coalesce(perceived_exertion, 0), coalesce(wellbeing, 0)
-     from workout_session_feedback
-     where user_id = $1
-     order by created_at desc
+     from workout_session_feedback f
+     join workout_sessions ws on ws.id = f.session_id
+     join training_plan_workouts tpw on tpw.id = ws.plan_workout_id
+     where f.user_id = $1 and tpw.plan_id = $2
+     order by ws.completed_at desc nulls last, f.created_at desc
      limit 4`,
     userID,
+    planID,
   )
   if err == nil {
     defer rows.Close()
@@ -1048,52 +1083,86 @@ func (s *Site) applyAdaptation(userID, planID, trigger string) {
   if samples == 0 {
     return
   }
-  if trigger == "feedback" && samples < 2 {
-    return
-  }
 
   avgPain := float64(sumPain) / float64(samples)
   avgTolerance := float64(sumTolerance) / float64(samples)
   avgExertion := float64(sumExertion) / float64(samples)
   avgWellbeing := float64(sumWellbeing) / float64(samples)
 
-  var skipped int
-  _ = s.DB.QueryRow(
-    `select count(*) from training_plan_workouts
-     where plan_id = $1 and status = 'skipped' and scheduled_date >= current_date - interval '7 days'`,
-    planID,
-  ).Scan(&skipped)
-
   reasonCode := ""
   reason := ""
+  updateQuery := ""
+  lastExcellent := last.Tolerance >= 4 && last.Wellbeing >= 4 && last.Pain <= 1 && last.Exertion <= 3
+  lastCritical := last.Pain >= 4 || last.Tolerance <= 2 || last.Wellbeing <= 2 || last.Exertion >= 5
+  avgWarning := avgPain >= 3.5 || (avgPain >= 3 && avgWellbeing <= 2.5)
+  avgRegression := avgTolerance <= 2.5 || avgWellbeing <= 2.5 || (avgExertion >= 4 && avgTolerance <= 3.2)
 
-  if skipped >= 2 {
-    reasonCode = "missed"
-    reason = "Есть пропуски: план перераспределён"
-    _, _ = s.DB.Exec(
-      `update training_plan_workouts
-       set scheduled_date = scheduled_date + interval '7 days'
-       where plan_id = $1 and status = 'pending' and scheduled_date is not null`,
-      planID,
-    )
-  } else if last.Pain >= 4 || avgPain >= 3.5 || (avgPain >= 3 && avgWellbeing <= 2.5) {
-    reasonCode = "warning"
-    reason = "Отмечен дискомфорт: снижена интенсивность и рекомендована консультация"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
-  } else if last.Tolerance <= 2 || avgTolerance <= 2.5 || avgWellbeing <= 2.5 || avgExertion >= 4 {
-    reasonCode = "regression"
-    reason = "Низкая переносимость нагрузки: снижена интенсивность"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = greatest(intensity - 1, 1) where plan_id = $1 and status = 'pending'`, planID)
-  } else if avgTolerance >= 4 && avgWellbeing >= 4 && avgPain <= 1.5 && avgExertion <= 3 && last.Tolerance >= 4 && last.Pain <= 1 && skipped == 0 {
+  if lastExcellent && skipped == 0 && avgPain <= 3 && avgExertion <= 4.5 {
     reasonCode = "progression"
     reason = "Хорошая переносимость: повышена интенсивность"
-    _, _ = s.DB.Exec(`update training_plan_workouts set intensity = least(intensity + 1, 3) where plan_id = $1 and status = 'pending'`, planID)
+    updateQuery = `update training_plan_workouts
+                   set intensity = intensity + 1
+                   where plan_id = $1 and status = 'pending' and intensity < 3`
+  } else if last.Pain >= 4 || (!lastExcellent && avgWarning) {
+    reasonCode = "warning"
+    reason = "Отмечен дискомфорт: снижена интенсивность и рекомендована консультация"
+    updateQuery = `update training_plan_workouts
+                   set intensity = intensity - 1
+                   where plan_id = $1 and status = 'pending' and intensity > 1`
+  } else if lastCritical || (!lastExcellent && avgRegression) {
+    reasonCode = "regression"
+    reason = "Низкая переносимость нагрузки: снижена интенсивность"
+    updateQuery = `update training_plan_workouts
+                   set intensity = intensity - 1
+                   where plan_id = $1 and status = 'pending' and intensity > 1`
   }
 
-  if reasonCode != "" {
-    after := s.planSnapshot(planID)
-    s.logPlanChange(userID, planID, reasonCode, reason, before, after)
+  if reasonCode == "" {
+    return
   }
+  before := s.planSnapshot(planID)
+  var pendingCount int
+  var minIntensity int
+  var maxIntensity int
+  _ = s.DB.QueryRow(
+    `select count(*), coalesce(min(intensity), 0), coalesce(max(intensity), 0)
+     from training_plan_workouts
+     where plan_id = $1 and status = 'pending'`,
+    planID,
+  ).Scan(&pendingCount, &minIntensity, &maxIntensity)
+
+  result, _ := s.DB.Exec(updateQuery, planID)
+  if affectedRows(result) == 0 {
+    noEffectReason := reason
+    if pendingCount == 0 {
+      noEffectReason = "Оценка сохранена: в плане нет будущих тренировок для корректировки"
+    } else if reasonCode == "progression" && maxIntensity >= 3 {
+      noEffectReason = "Хорошая переносимость: интенсивность уже максимальная"
+    } else if (reasonCode == "regression" || reasonCode == "warning") && minIntensity <= 1 {
+      if reasonCode == "warning" {
+        noEffectReason = "Отмечен дискомфорт: интенсивность уже минимальная, рекомендована консультация"
+      } else {
+        noEffectReason = "Низкая переносимость нагрузки: интенсивность уже минимальная"
+      }
+    } else {
+      noEffectReason = reason + " (изменения не требуются)"
+    }
+    s.logPlanChange(userID, planID, reasonCode, noEffectReason, before, before)
+    return
+  }
+  after := s.planSnapshot(planID)
+  s.logPlanChange(userID, planID, reasonCode, reason, before, after)
+}
+
+func affectedRows(result sql.Result) int64 {
+  if result == nil {
+    return 0
+  }
+  rows, err := result.RowsAffected()
+  if err != nil {
+    return 0
+  }
+  return rows
 }
 
 func (s *Site) planSnapshot(planID string) json.RawMessage {
@@ -1381,19 +1450,89 @@ func preferenceOptions() []string {
 }
 
 func normalizeEquipmentSelection(list []string) []string {
+  allowed := map[string]string{}
+  for _, item := range equipmentOptions() {
+    allowed[strings.ToLower(strings.TrimSpace(item))] = item
+  }
+
   cleaned := []string{}
+  seen := map[string]bool{}
   for _, item := range list {
-    value := strings.TrimSpace(item)
-    if value == "" {
+    key := strings.ToLower(strings.TrimSpace(item))
+    if key == "" {
+      continue
+    }
+    value, ok := allowed[key]
+    if !ok {
       continue
     }
     lower := strings.ToLower(value)
     if strings.Contains(lower, "без инвентар") || strings.Contains(lower, "без оборуд") {
       return []string{}
     }
+    if seen[lower] {
+      continue
+    }
+    seen[lower] = true
     cleaned = append(cleaned, value)
   }
   return cleaned
+}
+
+func normalizeSelection(list []string, options []string) []string {
+  allowed := map[string]string{}
+  for _, item := range options {
+    allowed[strings.ToLower(strings.TrimSpace(item))] = item
+  }
+
+  cleaned := []string{}
+  seen := map[string]bool{}
+  for _, item := range list {
+    key := strings.ToLower(strings.TrimSpace(item))
+    if key == "" {
+      continue
+    }
+    value, ok := allowed[key]
+    if !ok {
+      continue
+    }
+    if seen[key] {
+      continue
+    }
+    seen[key] = true
+    cleaned = append(cleaned, value)
+  }
+  return cleaned
+}
+
+func normalizePreferenceSelection(list []string) []string {
+  return normalizeSelection(list, preferenceOptions())
+}
+
+func normalizeRestrictionSelection(list []string) []string {
+  return normalizeSelection(list, restrictionOptions())
+}
+
+func isAdminPauseReason(reason string) bool {
+  normalized := strings.ToLower(strings.TrimSpace(reason))
+  return strings.Contains(normalized, "администратор")
+}
+
+func adminPauseLockedForRole(role, status, pausedReason string) bool {
+  if status != "paused" {
+    return false
+  }
+  if !isAdminPauseReason(pausedReason) {
+    return false
+  }
+  return strings.ToLower(strings.TrimSpace(role)) != "admin"
+}
+
+func planLaunchBlockedForRole(role, status, pausedReason string) bool {
+  if status != "paused" {
+    return false
+  }
+  return !(strings.ToLower(strings.TrimSpace(role)) == "admin" && isAdminPauseReason(pausedReason))
 }
 
 func weeklyOffsets(frequency int) []int {
@@ -1458,9 +1597,14 @@ func restrictionCategories(restrictions []string) map[string]bool {
 }
 
 func (s *Site) loadRestrictions(userID string) []string {
-  var restrictions []string
-  _ = s.DB.QueryRow(`select restrictions from medical_info where user_id = $1`, userID).Scan(&restrictions)
-  return restrictions
+  var raw string
+  _ = s.DB.QueryRow(
+    `select coalesce(array_to_string(restrictions, ','), '')
+     from medical_info
+     where user_id = $1`,
+    userID,
+  ).Scan(&raw)
+  return parseCSV(raw)
 }
 
 func (s *Site) loadDoctorApproval(userID string) bool {
@@ -1510,6 +1654,61 @@ func (s *Site) planIDBySession(sessionID string) string {
      where ws.id = $1`,
     sessionID,
   ).Scan(&planID)
+  return planID
+}
+
+func (s *Site) attachSessionToPlan(userID, sessionID string) string {
+  var workoutID string
+  if err := s.DB.QueryRow(
+    `select workout_id
+     from workout_sessions
+     where id = $1 and user_id = $2`,
+    sessionID,
+    userID,
+  ).Scan(&workoutID); err != nil {
+    return ""
+  }
+
+  var planWorkoutID string
+  var planID string
+  var linkedSessionID string
+  err := s.DB.QueryRow(
+    `select pw.id, pw.plan_id, coalesce(pw.session_id::text, '')
+     from training_plan_workouts pw
+     join training_plans tp on tp.id = pw.plan_id
+     where tp.user_id = $1
+       and tp.status in ('active', 'paused')
+       and pw.workout_id = $2
+       and pw.status in ('pending', 'in_progress')
+     order by case when pw.status = 'in_progress' then 0 else 1 end,
+              pw.scheduled_date nulls last, pw.week, pw.day
+     limit 1`,
+    userID,
+    workoutID,
+  ).Scan(&planWorkoutID, &planID, &linkedSessionID)
+  if err != nil {
+    return ""
+  }
+
+  if linkedSessionID != "" && linkedSessionID != sessionID {
+    return ""
+  }
+
+  _, _ = s.DB.Exec(
+    `update workout_sessions
+     set plan_workout_id = $1
+     where id = $2`,
+    planWorkoutID,
+    sessionID,
+  )
+  _, _ = s.DB.Exec(
+    `update training_plan_workouts
+     set session_id = $1,
+         status = 'completed'
+     where id = $2`,
+    sessionID,
+    planWorkoutID,
+  )
   return planID
 }
 

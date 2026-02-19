@@ -289,6 +289,10 @@ create index if not exists idx_plan_workouts_status on training_plan_workouts(st
 create index if not exists idx_plan_changes_plan on training_plan_changes(plan_id);
 create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
 create index if not exists idx_password_reset_status on password_reset_requests(status);
+alter table user_profiles
+  add column if not exists notifications_cleared_at timestamptz;
+create index if not exists idx_user_profiles_notifications_cleared_at
+  on user_profiles(notifications_cleared_at);
 
 -- +migrate Down
 -- (intentionally left blank)

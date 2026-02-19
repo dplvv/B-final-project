@@ -76,16 +76,22 @@
               {{ end }}
             {{ end }}
           </div>
-          <form class="form" method="post" action="/support/{{ .ID }}/messages" style="margin-top: 12px;">
-            <div class="form-group">
-              <label>Добавить сообщение</label>
-              <textarea name="message" rows="3" placeholder="Уточните детали или задайте новый вопрос" required></textarea>
-            </div>
-            <div style="display:flex; gap: 10px; flex-wrap: wrap;">
-              <button class="button secondary" type="submit">Отправить сообщение</button>
-              <button class="button danger" type="submit" formnovalidate formaction="/support/{{ .ID }}/close">Проблема решена</button>
-            </div>
-          </form>
+          {{ if eq .Status "closed" }}
+            <div class="muted" style="margin-top: 12px;">Обращение закрыто.</div>
+          {{ else }}
+            <form class="form" method="post" action="/support/{{ .ID }}/messages" style="margin-top: 12px;">
+              <div class="form-group">
+                <label>Добавить сообщение</label>
+                <textarea name="message" rows="3" placeholder="Уточните детали или задайте новый вопрос" required></textarea>
+              </div>
+              <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+                <button class="button secondary" type="submit">Отправить сообщение</button>
+              </div>
+            </form>
+            <form method="post" action="/support/{{ .ID }}/close" style="margin-top: 8px;">
+              <button class="button danger" type="submit">Проблема решена</button>
+            </form>
+          {{ end }}
         </div>
       {{ else }}
         <div class="empty-state">

@@ -766,6 +766,45 @@ textarea:focus {
   width: auto;
 }
 
+.choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.choice-chip {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.choice-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choice-chip span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.choice-chip input:checked + span {
+  border-color: rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
 .toggle {
   display: flex;
   align-items: center;

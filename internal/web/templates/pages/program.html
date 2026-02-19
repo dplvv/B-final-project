@@ -6,9 +6,13 @@
   </div>
   <div style="display:flex; gap:12px; flex-wrap: wrap;">
     {{ if not .SetupIncomplete }}
-      <form method="post" action="/plan/regenerate">
-        <button class="button primary" type="submit">Пересобрать план</button>
-      </form>
+      {{ if .PlanAdminLocked }}
+        <span class="muted">Возобновление доступно только администратору</span>
+      {{ else }}
+        <form method="post" action="/plan/regenerate">
+          <button class="button primary" type="submit">Пересобрать план</button>
+        </form>
+      {{ end }}
     {{ else }}
       <a class="button secondary" href="/questionnaire">Опросник</a>
     {{ end }}
@@ -69,7 +73,7 @@
           </div>
           {{ if not .DoctorApproval }}
             <div class="notice warning">Требуется допуск врача для начала.</div>
-          {{ else if .PlanPaused }}
+          {{ else if .PlanLaunchBlocked }}
             <div class="notice error">План приостановлен. Запуск недоступен.</div>
           {{ else }}
             {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
@@ -100,9 +104,11 @@
         {{ if .PlanPaused }}<div class="muted">План приостановлен</div>{{ end }}
       </div>
       <div style="margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap;">
-        <form method="post" action="/plan/regenerate">
-          <button class="button secondary" type="submit">Пересобрать</button>
-        </form>
+        {{ if not .PlanAdminLocked }}
+          <form method="post" action="/plan/regenerate">
+            <button class="button secondary" type="submit">Пересобрать</button>
+          </form>
+        {{ end }}
       </div>
     </div>
   </div>
@@ -223,7 +229,7 @@
           <td>
             {{ if not $.DoctorApproval }}
               <span class="muted">Нет допуска врача</span>
-            {{ else if $.PlanPaused }}
+            {{ else if $.PlanLaunchBlocked }}
               <span class="muted">План на паузе</span>
             {{ else if eq .Status "completed" }}
               {{ if .SessionID }}
@@ -274,9 +280,13 @@
       </div>
       <div style="display:flex; gap: 10px; flex-wrap: wrap;">
         <a class="button secondary" href="/programs/{{ .ID }}">Подробнее</a>
-        <form method="post" action="/programs/{{ .ID }}/start">
-          <button class="button primary" type="submit">Начать</button>
-        </form>
+        {{ if $.PlanLaunchBlocked }}
+          <span class="muted">План на паузе</span>
+        {{ else }}
+          <form method="post" action="/programs/{{ .ID }}/start">
+            <button class="button primary" type="submit">Начать</button>
+          </form>
+        {{ end }}
       </div>
     </div>
   {{ else }}

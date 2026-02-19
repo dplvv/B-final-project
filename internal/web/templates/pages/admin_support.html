@@ -48,13 +48,22 @@
           {{ end }}
         {{ end }}
       </div>
-      <form class="form" method="post" action="/admin/support/{{ .ID }}/respond" style="margin-top: 12px;">
-        <div class="form-group">
-          <label>Ответ</label>
-          <textarea name="response" rows="3" required></textarea>
-        </div>
-        <button class="button primary" type="submit">Отправить ответ</button>
-      </form>
+      {{ if eq .Status "closed" }}
+        <div class="muted" style="margin-top: 12px;">Обращение закрыто.</div>
+      {{ else }}
+        <form class="form" method="post" action="/admin/support/{{ .ID }}/respond" style="margin-top: 12px;">
+          <div class="form-group">
+            <label>Ответ</label>
+            <textarea name="response" rows="3" required></textarea>
+          </div>
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <button class="button primary" type="submit">Отправить ответ</button>
+          </div>
+        </form>
+        <form method="post" action="/admin/support/{{ .ID }}/close" style="margin-top: 8px;">
+          <button class="button danger" type="submit">Проблема решена</button>
+        </form>
+      {{ end }}
     </div>
   {{ else }}
     <div class="card">

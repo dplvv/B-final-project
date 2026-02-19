@@ -53,6 +53,11 @@
               <div class="card">
                 <div class="card-header">
                   <div class="card-title">Уведомления</div>
+                  {{ if gt .NotificationsCount 0 }}
+                    <form method="post" action="/notifications/clear">
+                      <button class="button secondary" type="submit">Очистить</button>
+                    </form>
+                  {{ end }}
                 </div>
                 <div class="notifications-list">
                   {{ range .Notifications }}

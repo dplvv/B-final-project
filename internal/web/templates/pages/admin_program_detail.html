@@ -19,6 +19,7 @@
     <div class="card-title">Добавить тренировку</div>
   </div>
   <form class="form" method="post" action="/admin/programs/{{ .Program.ID }}/workouts/add">
+    <input type="hidden" name="program_id" value="{{ .Program.ID }}" />
     <div class="grid cols-2">
       <div class="form-group">
         <label>Тренировка</label>
@@ -61,6 +62,7 @@
           <td>{{ .Difficulty }}</td>
           <td>
             <form method="post" action="/admin/programs/{{ $.Program.ID }}/workouts/{{ .ID }}/remove">
+              <input type="hidden" name="program_id" value="{{ $.Program.ID }}" />
               <button class="button secondary" type="submit">Удалить</button>
             </form>
           </td>

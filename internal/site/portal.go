@@ -927,9 +927,41 @@ func (s *Site) adminSupportRespond(w http.ResponseWriter, r *http.Request) {
   )
   }
   _, _ = s.DB.Exec(
-    `update support_tickets set response = $1, status = 'open', updated_at = now() where id = $2`,
+    `update support_tickets
+     set response = $1,
+         status = case when status = 'closed' then 'closed' else 'open' end,
+         updated_at = now()
+     where id = $2`,
     response,
     ticketID,
+  )
+  http.Redirect(w, r, "/admin/support", http.StatusSeeOther)
+}
+
+func (s *Site) adminSupportClose(w http.ResponseWriter, r *http.Request) {
+  admin := middleware.UserFromContext(r.Context())
+  if admin == nil || admin.Role != "admin" {
+    http.Error(w, "Доступ запрещён", http.StatusForbidden)
+    return
+  }
+  ticketID := chi.URLParam(r, "id")
+  if ticketID == "" {
+    http.Redirect(w, r, "/admin/support", http.StatusSeeOther)
+    return
+  }
+
+  _, _ = s.DB.Exec(
+    `update support_tickets
+     set status = 'closed', updated_at = now()
+     where id = $1`,
+    ticketID,
+  )
+  _, _ = s.DB.Exec(
+    `insert into support_ticket_messages (ticket_id, sender_id, sender_role, message)
+     values ($1, $2, 'admin', $3)`,
+    ticketID,
+    admin.ID,
+    "Проблема решена",
   )
   http.Redirect(w, r, "/admin/support", http.StatusSeeOther)
 }

@@ -78,20 +78,26 @@
       <div class="card-title">Оборудование и предпочтения</div>
       <div class="form-group" style="margin-top: 16px;">
         <label>Инвентарь</label>
-        <select name="equipment" multiple>
+        <div class="choice-grid">
           {{ range .EquipmentOptions }}
-            <option value="{{ . }}" {{ if contains $.Questionnaire.Equipment . }}selected{{ end }}>{{ . }}</option>
+            <label class="choice-chip">
+              <input type="checkbox" name="equipment" value="{{ . }}" {{ if contains $.Questionnaire.Equipment . }}checked{{ end }} />
+              <span>{{ . }}</span>
+            </label>
           {{ end }}
-        </select>
+        </div>
         <div class="muted" style="margin-top: 6px;">Можно выбрать несколько вариантов. Если инвентаря нет, выберите «Без инвентаря».</div>
       </div>
       <div class="form-group">
         <label>Предпочтения по формату</label>
-        <select name="preferences" multiple>
+        <div class="choice-grid">
           {{ range .PreferenceOptions }}
-            <option value="{{ . }}" {{ if contains $.SelectedPreferences . }}selected{{ end }}>{{ . }}</option>
+            <label class="choice-chip">
+              <input type="checkbox" name="preferences" value="{{ . }}" {{ if contains $.SelectedPreferences . }}checked{{ end }} />
+              <span>{{ . }}</span>
+            </label>
           {{ end }}
-        </select>
+        </div>
         <div class="muted" style="margin-top: 6px;">Выберите фокус занятий, чтобы подобрать тренировки точнее.</div>
       </div>
     </div>
@@ -127,6 +133,10 @@
       var prevBtn = document.getElementById('quiz-prev');
       var nextBtn = document.getElementById('quiz-next');
       var submitBtn = document.getElementById('quiz-submit');
+      var equipmentInputs = Array.from(document.querySelectorAll('input[name="equipment"]'));
+      var noEquipmentInput = equipmentInputs.find(function(input) {
+        return input.value && input.value.toLowerCase().indexOf('без инвентар') !== -1;
+      }) || null;
       var current = 0;
 
       function render() {
@@ -161,6 +171,38 @@
           render();
         }
       });
+
+      function syncEquipmentSelection(changedInput) {
+        if (!noEquipmentInput) return;
+        if (!changedInput) {
+          if (noEquipmentInput.checked) {
+            equipmentInputs.forEach(function(input) {
+              if (input !== noEquipmentInput) {
+                input.checked = false;
+              }
+            });
+          }
+          return;
+        }
+        if (changedInput === noEquipmentInput && noEquipmentInput.checked) {
+          equipmentInputs.forEach(function(input) {
+            if (input !== noEquipmentInput) {
+              input.checked = false;
+            }
+          });
+          return;
+        }
+        if (changedInput !== noEquipmentInput && changedInput && changedInput.checked) {
+          noEquipmentInput.checked = false;
+        }
+      }
+
+      equipmentInputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+          syncEquipmentSelection(input);
+        });
+      });
+      syncEquipmentSelection(null);
 
       render();
     })();
