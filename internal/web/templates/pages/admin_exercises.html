@@ -130,7 +130,10 @@
               {{ end }}
             </div>
           </div>
-          <button class="button secondary" type="submit">Обновить</button>
+          <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+            <button class="button secondary" type="submit">Обновить</button>
+            <button class="button danger" type="submit" formaction="/admin/exercises/{{ .ID }}/delete" formnovalidate>Удалить</button>
+          </div>
         </form>
       </div>
     {{ else }}

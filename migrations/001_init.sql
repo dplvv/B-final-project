@@ -16,6 +16,7 @@ create table if not exists users (
 
 create table if not exists user_profiles (
   user_id uuid primary key references users(id) on delete cascade,
+  birth_date date,
   age int,
   fitness_level text,
   goals text[] not null default '{}',
@@ -291,6 +292,8 @@ create index if not exists idx_support_messages_ticket on support_ticket_message
 create index if not exists idx_password_reset_status on password_reset_requests(status);
 alter table user_profiles
   add column if not exists notifications_cleared_at timestamptz;
+alter table user_profiles
+  add column if not exists birth_date date;
 create index if not exists idx_user_profiles_notifications_cleared_at
   on user_profiles(notifications_cleared_at);
 

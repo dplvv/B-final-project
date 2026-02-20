@@ -39,6 +39,9 @@
             <button class="button secondary" type="submit">Приостановить</button>
           </form>
         {{ end }}
+        <form method="post" action="/admin/plans/{{ .UserID }}/delete">
+          <button class="button danger" type="submit">Удалить план</button>
+        </form>
       </div>
     </div>
     <div class="card">

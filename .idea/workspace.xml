@@ -5,26 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="888b7ea2-faa1-4695-8d42-a37855f4f386" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/GoLandWorkspace.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/go.imports.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/go.imports.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/site/admin_content.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/admin_content.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/site/portal.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/portal.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/site/site.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/site.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/site/training.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/site/training.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/static/app.css" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/static/app.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/base.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/admin_achievements.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/admin_achievements.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/admin_program_detail.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/admin_program_detail.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/admin_support.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/admin_support.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/dashboard.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/program.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/program.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/questionnaire.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/web/templates/pages/support.html" beforeDir="false" afterPath="$PROJECT_DIR$/internal/web/templates/pages/support.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/001_init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/migrations/001_init.sql" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -133,14 +133,20 @@
     <div class="card-title">{{ .TrendTitle }}</div>
     <div class="trend-controls">
       <div class="segmented">
-        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day">Дни</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week">Недели</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month">Месяцы</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Дни</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Недели</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Месяцы</a>
       </div>
       <span class="badge">{{ .TrendBadge }}</span>
     </div>
   </div>
   <div class="muted" style="margin-bottom: 12px;">Синим — количество тренировок, зелёным — средняя переносимость.</div>
+  <form method="get" class="inline-form" style="margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+    <input type="hidden" name="period" value="{{ .TrendPeriod }}" />
+    <input type="date" name="date_from" value="{{ .TrendDateFrom }}" />
+    <input type="date" name="date_to" value="{{ .TrendDateTo }}" />
+    <button class="button secondary" type="submit">Применить даты</button>
+  </form>
   <div class="trend-chart {{ if eq .TrendMode "employees" }}employees{{ end }}">
     {{ range .Trend }}
       <div class="trend-row">

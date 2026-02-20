@@ -2,6 +2,7 @@ package site
 
 import (
   "bytes"
+  "database/sql"
   "errors"
   "fmt"
   "io"
@@ -437,6 +438,20 @@ func (s *Site) adminExerciseImageDelete(w http.ResponseWriter, r *http.Request) 
   http.Redirect(w, r, "/admin/exercises?success=Фото%20удалено", http.StatusSeeOther)
 }
 
+func (s *Site) adminExerciseDelete(w http.ResponseWriter, r *http.Request) {
+  exerciseID := chi.URLParam(r, "id")
+  if exerciseID == "" {
+    http.Redirect(w, r, "/admin/exercises?error=Не%20найдено%20упражнение", http.StatusSeeOther)
+    return
+  }
+
+  if _, err := s.DB.Exec(`delete from exercises where id = $1`, exerciseID); err != nil {
+    http.Redirect(w, r, "/admin/exercises?error=Не%20удалось%20удалить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/exercises?success=Упражнение%20удалено", http.StatusSeeOther)
+}
+
 func (s *Site) saveExerciseImage(r *http.Request) (string, error) {
   file, header, err := r.FormFile("image_file")
   if err != nil {
@@ -610,6 +625,20 @@ func (s *Site) adminWorkoutUpdate(w http.ResponseWriter, r *http.Request) {
     return
   }
   http.Redirect(w, r, "/admin/workouts?success=Тренировка%20обновлена", http.StatusSeeOther)
+}
+
+func (s *Site) adminWorkoutDelete(w http.ResponseWriter, r *http.Request) {
+  workoutID := chi.URLParam(r, "id")
+  if workoutID == "" {
+    http.Redirect(w, r, "/admin/workouts?error=Не%20найдена%20тренировка", http.StatusSeeOther)
+    return
+  }
+
+  if _, err := s.DB.Exec(`delete from workouts where id = $1`, workoutID); err != nil {
+    http.Redirect(w, r, "/admin/workouts?error=Не%20удалось%20удалить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/workouts?success=Тренировка%20удалена", http.StatusSeeOther)
 }
 
 func (s *Site) adminWorkoutDetail(w http.ResponseWriter, r *http.Request) {
@@ -863,16 +892,28 @@ func (s *Site) adminProgramCreate(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin/programs?error=Заполните%20название%20и%20описание", http.StatusSeeOther)
     return
   }
-  _, err := s.DB.Exec(
-    `insert into programs (name, description, muscle_groups)
-     values ($1, $2, $3)
-     on conflict (name)
-     do update set description = excluded.description,
-                   muscle_groups = excluded.muscle_groups`,
-    name,
-    description,
-    muscles,
-  )
+  var existingProgramID string
+  err := s.DB.QueryRow(`select id from programs where lower(name) = lower($1) limit 1`, name).Scan(&existingProgramID)
+  if err == nil {
+    _, err = s.DB.Exec(
+      `update programs
+       set description = $1,
+           muscle_groups = $2,
+           active = true
+       where id = $3`,
+      description,
+      muscles,
+      existingProgramID,
+    )
+  } else if errors.Is(err, sql.ErrNoRows) {
+    _, err = s.DB.Exec(
+      `insert into programs (name, description, muscle_groups, active)
+       values ($1, $2, $3, true)`,
+      name,
+      description,
+      muscles,
+    )
+  }
   if err != nil {
     http.Redirect(w, r, "/admin/programs?error=Не%20удалось%20сохранить", http.StatusSeeOther)
     return
@@ -967,7 +1008,8 @@ func (s *Site) adminProgramUpdate(w http.ResponseWriter, r *http.Request) {
     `update programs
      set name = coalesce(nullif($1, ''), name),
          description = coalesce(nullif($2, ''), description),
-         muscle_groups = $3
+         muscle_groups = $3,
+         active = true
      where id = $4`,
     name,
     description,
@@ -979,6 +1021,20 @@ func (s *Site) adminProgramUpdate(w http.ResponseWriter, r *http.Request) {
     return
   }
   http.Redirect(w, r, "/admin/programs?success=Программа%20обновлена", http.StatusSeeOther)
+}
+
+func (s *Site) adminProgramDelete(w http.ResponseWriter, r *http.Request) {
+  programID := s.resolveProgramIDFromRequest(r)
+  if programID == "" {
+    http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
+    return
+  }
+
+  if _, err := s.DB.Exec(`delete from programs where id = $1`, programID); err != nil {
+    http.Redirect(w, r, "/admin/programs?error=Не%20удалось%20удалить", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/programs?success=Программа%20удалена", http.StatusSeeOther)
 }
 
 func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
@@ -1194,6 +1250,20 @@ func (s *Site) adminPlanResume(w http.ResponseWriter, r *http.Request) {
     _, _ = s.DB.Exec(`update training_plans set status = 'active', paused_reason = null, updated_at = now() where id = $1`, plan.ID)
   }
   http.Redirect(w, r, "/admin/plans/"+userID+"?success=План%20возобновлен", http.StatusSeeOther)
+}
+
+func (s *Site) adminPlanDelete(w http.ResponseWriter, r *http.Request) {
+  userID := chi.URLParam(r, "id")
+  if userID == "" {
+    http.Redirect(w, r, "/admin/plans?error=Не%20найден%20сотрудник", http.StatusSeeOther)
+    return
+  }
+
+  if _, err := s.DB.Exec(`delete from training_plans where user_id = $1`, userID); err != nil {
+    http.Redirect(w, r, "/admin/plans?error=Не%20удалось%20удалить%20план", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin/plans?success=Планы%20сотрудника%20удалены", http.StatusSeeOther)
 }
 
 func (s *Site) adminPlanWorkoutReplace(w http.ResponseWriter, r *http.Request) {

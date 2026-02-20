@@ -48,14 +48,20 @@
     <div class="card-title">Динамика по компании</div>
     <div class="trend-controls">
       <div class="segmented">
-        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day">Дни</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week">Недели</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month">Месяцы</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Дни</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Недели</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Месяцы</a>
       </div>
       <span class="badge">{{ .TrendBadge }}</span>
     </div>
   </div>
   <div class="muted" style="margin-bottom: 12px;">Синим — количество тренировок, зелёным — средняя переносимость.</div>
+  <form method="get" class="inline-form" style="margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+    <input type="hidden" name="period" value="{{ .TrendPeriod }}" />
+    <input type="date" name="date_from" value="{{ .TrendDateFrom }}" />
+    <input type="date" name="date_to" value="{{ .TrendDateTo }}" />
+    <button class="button secondary" type="submit">Применить даты</button>
+  </form>
   <div class="trend-chart">
     {{ range .AdminTimeTrend }}
       <div class="trend-row">
@@ -85,14 +91,20 @@
     <div class="card-title">Активность сотрудников (топ-10)</div>
     <div class="trend-controls">
       <div class="segmented">
-        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day">Дни</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week">Недели</a>
-        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month">Месяцы</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "day" }}active{{ end }}" href="?period=day{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Дни</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "week" }}active{{ end }}" href="?period=week{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Недели</a>
+        <a class="segmented-button {{ if eq .TrendPeriod "month" }}active{{ end }}" href="?period=month{{ if .TrendDateFrom }}&date_from={{ .TrendDateFrom }}{{ end }}{{ if .TrendDateTo }}&date_to={{ .TrendDateTo }}{{ end }}">Месяцы</a>
       </div>
       <span class="badge">{{ .TrendBadge }}</span>
     </div>
   </div>
   <div class="muted" style="margin-bottom: 12px;">Синим — количество тренировок, зелёным — средняя переносимость.</div>
+  <form method="get" class="inline-form" style="margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+    <input type="hidden" name="period" value="{{ .TrendPeriod }}" />
+    <input type="date" name="date_from" value="{{ .TrendDateFrom }}" />
+    <input type="date" name="date_to" value="{{ .TrendDateTo }}" />
+    <button class="button secondary" type="submit">Применить даты</button>
+  </form>
   <div class="trend-chart employees">
     {{ range .AdminEmployeeTrend }}
       <div class="trend-row">
@@ -243,6 +255,10 @@
           <input name="position" />
         </div>
         <div class="form-group">
+          <label>Дата рождения</label>
+          <input type="date" name="birth_date" />
+        </div>
+        <div class="form-group">
           <label>Временный пароль</label>
           <input name="temp_password" required />
         </div>
@@ -293,7 +309,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">{{ .Name }}</div>
-            <div class="muted">ID {{ .EmployeeID }} · {{ roleLabel .Role }}</div>
+            <div class="muted">ID {{ .EmployeeID }} · {{ roleLabel .Role }}{{ if gt .Age 0 }} · {{ .Age }} лет{{ end }}</div>
           </div>
           <span class="badge">{{ if .DoctorApproval }}Допуск врача{{ else }}Без допуска{{ end }}</span>
         </div>
@@ -326,6 +342,10 @@
                 <input type="text" name="position" value="{{ .Position }}" />
               </div>
               <div class="form-group">
+                <label>Дата рождения</label>
+                <input type="date" name="birth_date" value="{{ .BirthDate }}" />
+              </div>
+              <div class="form-group">
                 <label class="toggle">
                   <input type="checkbox" name="doctor_approval" {{ if .DoctorApproval }}checked{{ end }} />
                   <span>Допуск врача</span>
@@ -334,6 +354,7 @@
             </div>
             <div style="display:flex; gap: 10px; flex-wrap: wrap;">
               <button class="button secondary" type="submit">Сохранить</button>
+              <button class="button danger" type="submit" formaction="/admin/users/{{ .ID }}/delete" formnovalidate>Удалить сотрудника</button>
             </div>
           </form>
           <form class="form" method="post" action="/admin/users/{{ .ID }}/reset-password">

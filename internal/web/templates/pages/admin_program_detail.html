@@ -4,7 +4,13 @@
     <div class="page-title">{{ .Program.Name }}</div>
     <div class="page-subtitle">Настройка тренировок внутри программы.</div>
   </div>
-  <a class="button secondary" href="/admin/programs">Назад</a>
+  <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+    <a class="button secondary" href="/admin/programs">Назад</a>
+    <form method="post" action="/admin/programs/{{ .Program.ID }}/delete">
+      <input type="hidden" name="program_id" value="{{ .Program.ID }}" />
+      <button class="button danger" type="submit">Удалить программу</button>
+    </form>
+  </div>
 </div>
 
 {{ if .Success }}

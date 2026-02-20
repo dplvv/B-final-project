@@ -263,9 +263,12 @@ func (s *Site) managerDashboard(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
   data := s.baseData(r, "Руководитель", "manager")
   period := normalizeTrendPeriod(r.URL.Query().Get("period"))
-  trendConfig, _ := trendPeriodConfig(period, time.Now())
+  rangeFilter := parseTrendDateRange(r, time.Now())
+  trendConfig, _, _ := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
   data["TrendPeriod"] = period
   data["TrendBadge"] = trendConfig.Badge
+  data["TrendDateFrom"] = rangeFilter.FromValue
+  data["TrendDateTo"] = rangeFilter.ToValue
 
   department := strings.TrimSpace(user.Department)
   query := `select u.id, u.name, u.employee_id, coalesce(u.department, ''), coalesce(u.position, ''), coalesce(p.points_balance, 0)
@@ -338,8 +341,8 @@ func (s *Site) managerDashboard(w http.ResponseWriter, r *http.Request) {
     }
   }
   data["Redemptions"] = redemptions
-  data["DepartmentTimeTrend"] = s.loadDepartmentTrendPeriod(department, period)
-  data["DepartmentEmployeeTrend"] = s.loadEmployeeTrend(department, period)
+  data["DepartmentTimeTrend"] = s.loadDepartmentTrendPeriod(department, period, rangeFilter)
+  data["DepartmentEmployeeTrend"] = s.loadEmployeeTrend(department, period, rangeFilter)
 
   s.render(w, "manager", data)
 }
@@ -536,9 +539,12 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
   data["Success"] = r.URL.Query().Get("success")
   data["Error"] = r.URL.Query().Get("error")
   period := normalizeTrendPeriod(r.URL.Query().Get("period"))
-  trendConfig, _ := trendPeriodConfig(period, time.Now())
+  rangeFilter := parseTrendDateRange(r, time.Now())
+  trendConfig, _, _ := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
   data["TrendPeriod"] = period
   data["TrendBadge"] = trendConfig.Badge
+  data["TrendDateFrom"] = rangeFilter.FromValue
+  data["TrendDateTo"] = rangeFilter.ToValue
 
   var usersCount int
   _ = s.DB.QueryRow(`select count(*) from users`).Scan(&usersCount)
@@ -557,8 +563,8 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
     "Content": programs + workouts,
     "Pending": pendingResets + pendingSupport + pendingRewards,
   }
-  data["AdminTimeTrend"] = s.loadDepartmentTrendPeriod("", period)
-  data["AdminEmployeeTrend"] = s.loadEmployeeTrend("", period)
+  data["AdminTimeTrend"] = s.loadDepartmentTrendPeriod("", period, rangeFilter)
+  data["AdminEmployeeTrend"] = s.loadEmployeeTrend("", period, rangeFilter)
 
   topWorkouts := []analyticsItem{}
   rows, err := s.DB.Query(
@@ -640,8 +646,11 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
 
   rows, err = s.DB.Query(
     `select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
+            coalesce(to_char(up.birth_date, 'YYYY-MM-DD'), ''),
+            coalesce(extract(year from age(current_date, up.birth_date))::int, up.age, 0),
             coalesce(mi.doctor_approval, false)
      from users u
+     left join user_profiles up on up.user_id = u.id
      left join medical_info mi on mi.user_id = u.id
      order by u.created_at desc`,
   )
@@ -650,7 +659,7 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       var u managerEmployeeView
-      _ = rows.Scan(&u.ID, &u.Name, &u.EmployeeID, &u.Role, &u.Department, &u.Position, &u.DoctorApproval)
+      _ = rows.Scan(&u.ID, &u.Name, &u.EmployeeID, &u.Role, &u.Department, &u.Position, &u.BirthDate, &u.Age, &u.DoctorApproval)
       users = append(users, u)
     }
   }
@@ -690,6 +699,7 @@ func (s *Site) adminUserCreate(w http.ResponseWriter, r *http.Request) {
   role := strings.TrimSpace(r.FormValue("role"))
   department := strings.TrimSpace(r.FormValue("department"))
   position := strings.TrimSpace(r.FormValue("position"))
+  birthDateRaw := strings.TrimSpace(r.FormValue("birth_date"))
   tempPassword := r.FormValue("temp_password")
   if name == "" || employeeID == "" || tempPassword == "" {
     http.Redirect(w, r, "/admin?error=Заполните%20все%20поля", http.StatusSeeOther)
@@ -697,6 +707,16 @@ func (s *Site) adminUserCreate(w http.ResponseWriter, r *http.Request) {
   }
   if role == "" {
     role = "employee"
+  }
+
+  var birthDate time.Time
+  if birthDateRaw != "" {
+    parsed, err := time.Parse("2006-01-02", birthDateRaw)
+    if err != nil {
+      http.Redirect(w, r, "/admin?error=Некорректная%20дата%20рождения", http.StatusSeeOther)
+      return
+    }
+    birthDate = parsed
   }
 
   hash, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
@@ -723,6 +743,19 @@ func (s *Site) adminUserCreate(w http.ResponseWriter, r *http.Request) {
   }
 
   _ = db.EnsureUserDefaults(s.DB, userID)
+  if !birthDate.IsZero() {
+    age := ageFromBirthDate(birthDate, time.Now())
+    _, _ = s.DB.Exec(
+      `update user_profiles
+       set birth_date = $1,
+           age = $2,
+           updated_at = now()
+       where user_id = $3`,
+      birthDate,
+      age,
+      userID,
+    )
+  }
   http.Redirect(w, r, "/admin?success=Пользователь%20создан", http.StatusSeeOther)
 }
 
@@ -742,6 +775,7 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
   department := strings.TrimSpace(r.FormValue("department"))
   position := strings.TrimSpace(r.FormValue("position"))
   role := strings.TrimSpace(r.FormValue("role"))
+  birthDateRaw := strings.TrimSpace(r.FormValue("birth_date"))
   doctorApproval := r.FormValue("doctor_approval") == "on"
 
   _, err := s.DB.Exec(
@@ -773,7 +807,61 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
     userID,
   )
 
+  if birthDateRaw != "" {
+    birthDate, err := time.Parse("2006-01-02", birthDateRaw)
+    if err != nil {
+      http.Redirect(w, r, "/admin?error=Некорректная%20дата%20рождения", http.StatusSeeOther)
+      return
+    }
+    age := ageFromBirthDate(birthDate, time.Now())
+    _, _ = s.DB.Exec(
+      `insert into user_profiles (user_id, birth_date, age, updated_at)
+       values ($1, $2, $3, now())
+       on conflict (user_id)
+       do update set birth_date = excluded.birth_date,
+                     age = excluded.age,
+                     updated_at = now()`,
+      userID,
+      birthDate,
+      age,
+    )
+  }
+
   http.Redirect(w, r, "/admin?success=Данные%20обновлены", http.StatusSeeOther)
+}
+
+func (s *Site) adminUserDelete(w http.ResponseWriter, r *http.Request) {
+  admin := middleware.UserFromContext(r.Context())
+  userID := chi.URLParam(r, "id")
+  if userID == "" {
+    http.Redirect(w, r, "/admin?error=Не%20найден%20пользователь", http.StatusSeeOther)
+    return
+  }
+  if admin != nil && admin.ID == userID {
+    http.Redirect(w, r, "/admin?error=Нельзя%20удалить%20текущего%20пользователя", http.StatusSeeOther)
+    return
+  }
+
+  var role string
+  err := s.DB.QueryRow(`select role from users where id = $1`, userID).Scan(&role)
+  if err != nil {
+    http.Redirect(w, r, "/admin?error=Пользователь%20не%20найден", http.StatusSeeOther)
+    return
+  }
+  if strings.EqualFold(role, "admin") {
+    var admins int
+    _ = s.DB.QueryRow(`select count(*) from users where role = 'admin'`).Scan(&admins)
+    if admins <= 1 {
+      http.Redirect(w, r, "/admin?error=Нельзя%20удалить%20последнего%20администратора", http.StatusSeeOther)
+      return
+    }
+  }
+
+  if _, err := s.DB.Exec(`delete from users where id = $1`, userID); err != nil {
+    http.Redirect(w, r, "/admin?error=Не%20удалось%20удалить%20пользователя", http.StatusSeeOther)
+    return
+  }
+  http.Redirect(w, r, "/admin?success=Пользователь%20удален", http.StatusSeeOther)
 }
 
 func (s *Site) adminUserResetPassword(w http.ResponseWriter, r *http.Request) {
@@ -986,4 +1074,19 @@ func (s *Site) managerRedemptionAllowed(user *models.User, redemptionID string) 
     return false
   }
   return strings.EqualFold(dept, user.Department)
+}
+
+func ageFromBirthDate(birthDate time.Time, now time.Time) int {
+  if birthDate.IsZero() {
+    return 0
+  }
+  years := now.Year() - birthDate.Year()
+  birthdayThisYear := time.Date(now.Year(), birthDate.Month(), birthDate.Day(), 0, 0, 0, 0, now.Location())
+  if now.Before(birthdayThisYear) {
+    years--
+  }
+  if years < 0 {
+    return 0
+  }
+  return years
 }

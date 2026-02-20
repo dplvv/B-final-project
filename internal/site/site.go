@@ -167,6 +167,8 @@ type managerEmployeeView struct {
   Department         string
   Position           string
   Role               string
+  BirthDate          string
+  Age                int
   DoctorApproval     bool
   Points             int
   AchievementsTotal  int
@@ -274,6 +276,7 @@ func (s *Site) Router() chi.Router {
       ar.Get("/exercises", s.adminExercises)
       ar.Post("/exercises", s.adminExerciseCreate)
       ar.Post("/exercises/{id}/update", s.adminExerciseUpdate)
+      ar.Post("/exercises/{id}/delete", s.adminExerciseDelete)
       ar.Post("/exercises/{id}/image/delete", s.adminExerciseImageDelete)
       ar.Get("/rewards", s.adminRewards)
       ar.Post("/rewards", s.adminRewardCreate)
@@ -286,6 +289,7 @@ func (s *Site) Router() chi.Router {
       ar.Get("/workouts", s.adminWorkouts)
       ar.Post("/workouts", s.adminWorkoutCreate)
       ar.Post("/workouts/{id}/update", s.adminWorkoutUpdate)
+      ar.Post("/workouts/{id}/delete", s.adminWorkoutDelete)
       ar.Get("/workouts/{id}", s.adminWorkoutDetail)
       ar.Post("/workouts/{id}/exercises/add", s.adminWorkoutExerciseAdd)
       ar.Post("/workouts/{id}/exercises/{exerciseId}/update", s.adminWorkoutExerciseUpdate)
@@ -293,6 +297,7 @@ func (s *Site) Router() chi.Router {
       ar.Get("/programs", s.adminPrograms)
       ar.Post("/programs", s.adminProgramCreate)
       ar.Post("/programs/{id}/update", s.adminProgramUpdate)
+      ar.Post("/programs/{id}/delete", s.adminProgramDelete)
       ar.Get("/programs/{id}", s.adminProgramDetail)
       ar.Post("/programs/{id}/workouts/add", s.adminProgramWorkoutAdd)
       ar.Post("/programs/{id}/workouts/{workoutId}/remove", s.adminProgramWorkoutRemove)
@@ -301,9 +306,11 @@ func (s *Site) Router() chi.Router {
       ar.Post("/plans/{id}/regenerate", s.adminPlanRegenerate)
       ar.Post("/plans/{id}/pause", s.adminPlanPause)
       ar.Post("/plans/{id}/resume", s.adminPlanResume)
+      ar.Post("/plans/{id}/delete", s.adminPlanDelete)
       ar.Post("/plans/{id}/workouts/{planWorkoutId}/replace", s.adminPlanWorkoutReplace)
       ar.Post("/users/create", s.adminUserCreate)
       ar.Post("/users/{id}/update", s.adminUserUpdate)
+      ar.Post("/users/{id}/delete", s.adminUserDelete)
       ar.Post("/users/{id}/reset-password", s.adminUserResetPassword)
       ar.Get("/feedback", s.adminFeedback)
       ar.Get("/support", s.adminSupport)
@@ -693,28 +700,32 @@ func (s *Site) dashboard(w http.ResponseWriter, r *http.Request) {
   data["DoctorApproved"] = s.loadDoctorApproval(user.ID)
   data["Goal"] = goal
   period := normalizeTrendPeriod(r.URL.Query().Get("period"))
-  config, _ := trendPeriodConfig(period, time.Now())
-  data["Trend"] = s.loadUserTrendPeriod(user.ID, period)
+  rangeFilter := parseTrendDateRange(r, time.Now())
+  config, _, _ := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
+  data["Trend"] = s.loadUserTrendPeriod(user.ID, period, rangeFilter)
   data["TrendTitle"] = "Моя динамика тренировок и переносимости"
   data["TrendBadge"] = config.Badge
   data["TrendPeriod"] = period
   data["TrendMode"] = "time"
+  data["TrendDateFrom"] = rangeFilter.FromValue
+  data["TrendDateTo"] = rangeFilter.ToValue
   s.render(w, "dashboard", data)
 }
 
-func (s *Site) loadUserTrendPeriod(userID, period string) []trendPoint {
+func (s *Site) loadUserTrendPeriod(userID, period string, rangeFilter trendDateRange) []trendPoint {
   period = normalizeTrendPeriod(period)
-  config, start := trendPeriodConfig(period, time.Now())
+  config, start, end := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
 
   workoutCounts := map[string]int{}
   rows, err := s.DB.Query(
-    `select date_trunc($3, completed_at)::date, count(*)
+    `select date_trunc($4, completed_at)::date, count(*)
      from workout_sessions
-     where user_id = $1 and completed_at is not null and completed_at >= $2
+     where user_id = $1 and completed_at is not null and completed_at >= $2 and completed_at < $3
      group by 1
      order by 1`,
     userID,
     start,
+    end,
     period,
   )
   if err == nil {
@@ -729,13 +740,14 @@ func (s *Site) loadUserTrendPeriod(userID, period string) []trendPoint {
 
   toleranceAvg := map[string]int{}
   tRows, err := s.DB.Query(
-    `select date_trunc($3, created_at)::date, avg(coalesce(tolerance, 0))
+    `select date_trunc($4, created_at)::date, avg(coalesce(tolerance, 0))
      from workout_session_feedback
-     where user_id = $1 and created_at >= $2
+     where user_id = $1 and created_at >= $2 and created_at < $3
      group by 1
      order by 1`,
     userID,
     start,
+    end,
     period,
   )
   if err == nil {
@@ -779,21 +791,22 @@ func (s *Site) loadUserTrendPeriod(userID, period string) []trendPoint {
   return trend
 }
 
-func (s *Site) loadDepartmentTrendPeriod(department, period string) []trendPoint {
+func (s *Site) loadDepartmentTrendPeriod(department, period string, rangeFilter trendDateRange) []trendPoint {
   period = normalizeTrendPeriod(period)
-  config, start := trendPeriodConfig(period, time.Now())
+  config, start, end := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
 
   workoutCounts := map[string]int{}
   rows, err := s.DB.Query(
-    `select date_trunc($3, ws.completed_at)::date, count(*)
+    `select date_trunc($4, ws.completed_at)::date, count(*)
      from workout_sessions ws
      join users u on u.id = ws.user_id
-     where ws.completed_at is not null and ws.completed_at >= $1
+     where ws.completed_at is not null and ws.completed_at >= $1 and ws.completed_at < $2
        and u.role = 'employee'
-       and ($2 = '' or u.department = $2)
+       and ($3 = '' or u.department = $3)
      group by 1
      order by 1`,
     start,
+    end,
     department,
     period,
   )
@@ -809,15 +822,16 @@ func (s *Site) loadDepartmentTrendPeriod(department, period string) []trendPoint
 
   toleranceAvg := map[string]int{}
   tRows, err := s.DB.Query(
-    `select date_trunc($3, f.created_at)::date, avg(coalesce(f.tolerance, 0))
+    `select date_trunc($4, f.created_at)::date, avg(coalesce(f.tolerance, 0))
      from workout_session_feedback f
      join users u on u.id = f.user_id
-     where f.created_at >= $1
+     where f.created_at >= $1 and f.created_at < $2
        and u.role = 'employee'
-       and ($2 = '' or u.department = $2)
+       and ($3 = '' or u.department = $3)
      group by 1
      order by 1`,
     start,
+    end,
     department,
     period,
   )
@@ -862,9 +876,9 @@ func (s *Site) loadDepartmentTrendPeriod(department, period string) []trendPoint
   return trend
 }
 
-func (s *Site) loadEmployeeTrend(department, period string) []trendPoint {
+func (s *Site) loadEmployeeTrend(department, period string, rangeFilter trendDateRange) []trendPoint {
   period = normalizeTrendPeriod(period)
-  _, start := trendPeriodConfig(period, time.Now())
+  _, start, end := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
 
   type employeeStat struct {
     ID       string
@@ -880,12 +894,14 @@ func (s *Site) loadEmployeeTrend(department, period string) []trendPoint {
        on ws.user_id = u.id
       and ws.completed_at is not null
       and ws.completed_at >= $1
+      and ws.completed_at < $2
      where u.role = 'employee'
-       and ($2 = '' or u.department = $2)
+       and ($3 = '' or u.department = $3)
      group by u.id, u.name
      order by workouts desc, u.name
      limit 10`,
     start,
+    end,
     department,
   )
   if err == nil {
@@ -904,10 +920,12 @@ func (s *Site) loadEmployeeTrend(department, period string) []trendPoint {
      left join workout_session_feedback f
        on f.user_id = u.id
       and f.created_at >= $1
+      and f.created_at < $2
      where u.role = 'employee'
-       and ($2 = '' or u.department = $2)
+       and ($3 = '' or u.department = $3)
      group by u.id`,
     start,
+    end,
     department,
   )
   if err == nil {
@@ -1148,7 +1166,7 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
   view := profileView{User: *user}
 
   _ = s.DB.QueryRow(
-    `select coalesce(age, 0), coalesce(fitness_level, ''), goals
+    `select coalesce(extract(year from age(current_date, birth_date))::int, age, 0), coalesce(fitness_level, ''), goals
      from user_profiles where user_id = $1`,
     user.ID,
   ).Scan(&view.Age, &view.FitnessLevel, &view.Goals)
@@ -1816,6 +1834,14 @@ type trendPeriodSettings struct {
   Badge    string
 }
 
+type trendDateRange struct {
+  Enabled   bool
+  From      time.Time
+  To        time.Time
+  FromValue string
+  ToValue   string
+}
+
 func normalizeTrendPeriod(value string) string {
   switch strings.ToLower(strings.TrimSpace(value)) {
   case "day":
@@ -1826,6 +1852,42 @@ func normalizeTrendPeriod(value string) string {
     fallthrough
   default:
     return "week"
+  }
+}
+
+func parseTrendDateRange(r *http.Request, now time.Time) trendDateRange {
+  if r == nil {
+    return trendDateRange{}
+  }
+
+  fromRaw := strings.TrimSpace(r.URL.Query().Get("date_from"))
+  toRaw := strings.TrimSpace(r.URL.Query().Get("date_to"))
+  if fromRaw == "" && toRaw == "" {
+    return trendDateRange{}
+  }
+  if fromRaw == "" {
+    fromRaw = toRaw
+  }
+  if toRaw == "" {
+    toRaw = fromRaw
+  }
+
+  loc := now.Location()
+  from, okFrom := parseISODateInLocation(fromRaw, loc)
+  to, okTo := parseISODateInLocation(toRaw, loc)
+  if !okFrom || !okTo {
+    return trendDateRange{}
+  }
+  if to.Before(from) {
+    from, to = to, from
+  }
+
+  return trendDateRange{
+    Enabled:   true,
+    From:      from,
+    To:        to,
+    FromValue: from.Format("2006-01-02"),
+    ToValue:   to.Format("2006-01-02"),
   }
 }
 
@@ -1861,6 +1923,79 @@ func trendPeriodConfig(period string, now time.Time) (trendPeriodSettings, time.
   }
 }
 
+func trendPeriodConfigWithRange(period string, now time.Time, dateRange trendDateRange) (trendPeriodSettings, time.Time, time.Time) {
+  period = normalizeTrendPeriod(period)
+  location := now.Location()
+
+  if !dateRange.Enabled {
+    config, start := trendPeriodConfig(period, now)
+    var end time.Time
+    switch period {
+    case "month":
+      end = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, location).AddDate(0, 1, 0)
+    case "week":
+      end = weekStart(now).AddDate(0, 0, 7)
+    default:
+      end = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).AddDate(0, 0, 1)
+    }
+    return config, start, end
+  }
+
+  startDay := time.Date(dateRange.From.Year(), dateRange.From.Month(), dateRange.From.Day(), 0, 0, 0, 0, location)
+  endDay := time.Date(dateRange.To.Year(), dateRange.To.Month(), dateRange.To.Day(), 0, 0, 0, 0, location)
+  if endDay.Before(startDay) {
+    startDay, endDay = endDay, startDay
+  }
+
+  rangeBadge := startDay.Format("02.01.2006") + " — " + endDay.Format("02.01.2006")
+  switch period {
+  case "month":
+    start := time.Date(startDay.Year(), startDay.Month(), 1, 0, 0, 0, 0, location)
+    end := time.Date(endDay.Year(), endDay.Month(), 1, 0, 0, 0, 0, location).AddDate(0, 1, 0)
+    points := 0
+    cursor := start
+    for cursor.Before(end) {
+      points++
+      cursor = cursor.AddDate(0, 1, 0)
+    }
+    if points <= 0 {
+      points = 1
+    }
+    return trendPeriodSettings{
+      Period:   "month",
+      Points:   points,
+      LabelFmt: "01.2006",
+      Badge:    rangeBadge,
+    }, start, end
+  case "week":
+    start := weekStart(startDay)
+    end := weekStart(endDay).AddDate(0, 0, 7)
+    points := int(end.Sub(start).Hours() / 24 / 7)
+    if points <= 0 {
+      points = 1
+    }
+    return trendPeriodSettings{
+      Period:   "week",
+      Points:   points,
+      LabelFmt: "02.01",
+      Badge:    rangeBadge,
+    }, start, end
+  default:
+    start := startDay
+    end := endDay.AddDate(0, 0, 1)
+    points := int(end.Sub(start).Hours() / 24)
+    if points <= 0 {
+      points = 1
+    }
+    return trendPeriodSettings{
+      Period:   "day",
+      Points:   points,
+      LabelFmt: "02.01",
+      Badge:    rangeBadge,
+    }, start, end
+  }
+}
+
 func trendPointTime(start time.Time, period string, index int) time.Time {
   switch period {
   case "month":
@@ -1870,6 +2005,18 @@ func trendPointTime(start time.Time, period string, index int) time.Time {
   default:
     return start.AddDate(0, 0, index)
   }
+}
+
+func parseISODateInLocation(value string, location *time.Location) (time.Time, bool) {
+  raw := strings.TrimSpace(value)
+  if raw == "" {
+    return time.Time{}, false
+  }
+  parsed, err := time.ParseInLocation("2006-01-02", raw, location)
+  if err != nil {
+    return time.Time{}, false
+  }
+  return parsed, true
 }
 
 func nullIfEmpty(value string) any {

@@ -78,6 +78,7 @@
           <div style="display:flex; gap: 10px; flex-wrap: wrap;">
             <button class="button secondary" type="submit">Обновить</button>
             <a class="button link" href="/admin/workouts/{{ .ID }}">Упражнения</a>
+            <button class="button danger" type="submit" formaction="/admin/workouts/{{ .ID }}/delete" formnovalidate>Удалить</button>
           </div>
         </form>
       </div>
