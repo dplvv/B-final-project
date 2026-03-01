@@ -858,8 +858,50 @@ func (s *Site) adminUserDelete(w http.ResponseWriter, r *http.Request) {
     }
   }
 
-  if _, err := s.DB.Exec(`delete from users where id = $1`, userID); err != nil {
+  tx, err := s.DB.Begin()
+  if err != nil {
+    http.Redirect(w, r, "/admin?error=Не%20удалось%20начать%20удаление", http.StatusSeeOther)
+    return
+  }
+  defer func() {
+    _ = tx.Rollback()
+  }()
+
+  cleanupQueries := []string{
+    `delete from workout_session_sets where session_id in (select id from workout_sessions where user_id = $1)`,
+    `delete from workout_session_exercises where session_id in (select id from workout_sessions where user_id = $1)`,
+    `delete from workout_session_feedback where user_id = $1 or session_id in (select id from workout_sessions where user_id = $1)`,
+    `delete from workout_sessions where user_id = $1`,
+    `delete from support_ticket_messages where sender_id = $1 or ticket_id in (select id from support_tickets where user_id = $1)`,
+    `delete from support_tickets where user_id = $1`,
+    `delete from reward_redemptions where user_id = $1 or approved_by = $1`,
+    `delete from incentive_awards where user_id = $1 or awarded_by = $1`,
+    `delete from password_reset_requests where user_id = $1 or handled_by = $1`,
+    `delete from plan_sick_leaves where user_id = $1 or created_by = $1 or plan_id in (select id from training_plans where user_id = $1)`,
+    `delete from training_plan_workouts where plan_id in (select id from training_plans where user_id = $1)`,
+    `delete from training_plan_changes where user_id = $1 or plan_id in (select id from training_plans where user_id = $1)`,
+    `delete from training_plans where user_id = $1`,
+    `delete from user_programs where user_id = $1`,
+    `delete from user_achievements where user_id = $1`,
+    `delete from user_points where user_id = $1`,
+    `delete from medical_info where user_id = $1`,
+    `delete from questionnaire_responses where user_id = $1`,
+    `delete from user_profiles where user_id = $1`,
+    `delete from sessions where user_id = $1`,
+  }
+  for _, query := range cleanupQueries {
+    if _, err := tx.Exec(query, userID); err != nil {
+      http.Redirect(w, r, "/admin?error=Не%20удалось%20полностью%20удалить%20данные%20пользователя", http.StatusSeeOther)
+      return
+    }
+  }
+
+  if _, err := tx.Exec(`delete from users where id = $1`, userID); err != nil {
     http.Redirect(w, r, "/admin?error=Не%20удалось%20удалить%20пользователя", http.StatusSeeOther)
+    return
+  }
+  if err := tx.Commit(); err != nil {
+    http.Redirect(w, r, "/admin?error=Не%20удалось%20зафиксировать%20удаление", http.StatusSeeOther)
     return
   }
   http.Redirect(w, r, "/admin?success=Пользователь%20удален", http.StatusSeeOther)

@@ -318,5 +318,53 @@ where active is distinct from true;
 create index if not exists idx_user_profiles_notifications_cleared_at
   on user_profiles(notifications_cleared_at);
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = current_schema()
+      and table_name = 'user_profiles'
+      and column_name = 'answers'
+  ) then
+    insert into questionnaire_responses (user_id, answers, updated_at)
+    select up.user_id, coalesce(up.answers, '{}'::jsonb), now()
+    from user_profiles up
+    on conflict (user_id)
+    do update set answers = excluded.answers,
+                  updated_at = now();
+  end if;
+end
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = current_schema()
+      and table_name = 'user_profiles'
+      and column_name = 'doctor_approval'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = current_schema()
+      and table_name = 'user_profiles'
+      and column_name = 'restrictions'
+  ) then
+    insert into medical_info (user_id, doctor_approval, restrictions, updated_at)
+    select up.user_id,
+           coalesce(up.doctor_approval, false),
+           coalesce(up.restrictions, '{}'::text[]),
+           now()
+    from user_profiles up
+    on conflict (user_id)
+    do update set doctor_approval = excluded.doctor_approval,
+                  restrictions = excluded.restrictions,
+                  updated_at = now();
+  end if;
+end
+$$;
+
 -- +migrate Down
 -- (intentionally left blank)
