@@ -75,6 +75,8 @@
             <div class="notice warning">Требуется допуск врача для начала.</div>
           {{ else if .PlanLaunchBlocked }}
             <div class="notice error">План приостановлен. Запуск недоступен.</div>
+          {{ else if not .NextWorkout.StartAllowed }}
+            <div class="notice warning">Тренировку можно выполнить только в назначенную дату.</div>
           {{ else }}
             {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
               <a class="button primary" href="/sessions/{{ .NextWorkout.SessionID }}">Продолжить</a>
@@ -239,15 +241,19 @@
               {{ end }}
             {{ else }}
               {{ if or (eq .Status "pending") (eq .Status "in_progress") }}
-                <div class="inline-form">
-                  <form method="post" action="/plan-workouts/{{ .ID }}/start">
-                    <button class="button primary" type="submit">Старт</button>
-                  </form>
-                  <form method="post" action="/plan-workouts/{{ .ID }}/skip" class="inline-form">
-                    <input type="text" name="skip_reason" placeholder="Причина" />
-                    <button class="button secondary" type="submit">Пропустить</button>
-                  </form>
-                </div>
+                {{ if not .StartAllowed }}
+                  <span class="muted">Доступно только в назначенную дату</span>
+                {{ else }}
+                  <div class="inline-form">
+                    <form method="post" action="/plan-workouts/{{ .ID }}/start">
+                      <button class="button primary" type="submit">Старт</button>
+                    </form>
+                    <form method="post" action="/plan-workouts/{{ .ID }}/skip" class="inline-form">
+                      <input type="text" name="skip_reason" placeholder="Причина" />
+                      <button class="button secondary" type="submit">Пропустить</button>
+                    </form>
+                  </div>
+                {{ end }}
               {{ else }}
                 <span class="muted">Недоступно</span>
               {{ end }}

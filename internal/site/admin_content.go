@@ -15,6 +15,8 @@ import (
   "time"
 
   "github.com/go-chi/chi/v5"
+
+  "rehab-app/internal/middleware"
 )
 
 func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
@@ -862,7 +864,8 @@ func (s *Site) adminPrograms(w http.ResponseWriter, r *http.Request) {
   data["Error"] = r.URL.Query().Get("error")
 
   rows, err := s.DB.Query(
-    `select id, name, description, coalesce(muscle_groups, '{}')
+    `select id, name, description,
+            coalesce(replace(replace(replace(muscle_groups::text, '{', ''), '}', ''), '"', ''), '')
      from programs
      order by created_at desc`,
   )
@@ -871,7 +874,11 @@ func (s *Site) adminPrograms(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       var p programCard
-      _ = rows.Scan(&p.ID, &p.Name, &p.Description, &p.MuscleGroups)
+      var musclesRaw string
+      if err := rows.Scan(&p.ID, &p.Name, &p.Description, &musclesRaw); err != nil {
+        continue
+      }
+      p.MuscleGroups = parseCSV(musclesRaw)
       programs = append(programs, p)
     }
   }
@@ -1049,11 +1056,14 @@ func (s *Site) adminProgramDetail(w http.ResponseWriter, r *http.Request) {
     return
   }
   var program programCard
+  var musclesRaw string
   err := s.DB.QueryRow(
-    `select id, name, description, coalesce(muscle_groups, '{}')
+    `select id, name, description,
+            coalesce(replace(replace(replace(muscle_groups::text, '{', ''), '}', ''), '"', ''), '')
      from programs where id = $1`,
     programID,
-  ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
+  ).Scan(&program.ID, &program.Name, &program.Description, &musclesRaw)
+  program.MuscleGroups = parseCSV(musclesRaw)
   if err != nil {
     http.Redirect(w, r, "/admin/programs?error=Не%20найдена%20программа", http.StatusSeeOther)
     return
@@ -1215,71 +1225,196 @@ func (s *Site) adminPlanDetail(w http.ResponseWriter, r *http.Request) {
   s.render(w, "admin_plan_detail", data)
 }
 
+func adminPlanPath(userID string) string {
+  base := "/admin/plans"
+  if strings.TrimSpace(userID) == "" {
+    return base
+  }
+  return base + "/" + userID
+}
+
+func adminPlanRedirect(w http.ResponseWriter, r *http.Request, userID, kind, message string) {
+  destination := adminPlanPath(userID)
+  if strings.TrimSpace(kind) != "" && strings.TrimSpace(message) != "" {
+    query := url.Values{}
+    query.Set(kind, message)
+    destination += "?" + query.Encode()
+  }
+  http.Redirect(w, r, destination, http.StatusSeeOther)
+}
+
 func (s *Site) adminPlanRegenerate(w http.ResponseWriter, r *http.Request) {
   userID := chi.URLParam(r, "id")
   if userID == "" {
-    http.Redirect(w, r, "/admin/plans", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "", "")
     return
   }
   if plan, err := s.getActivePlan(userID); err == nil && plan != nil {
     _, _ = s.DB.Exec(`update training_plans set status = 'archived', updated_at = now() where id = $1`, plan.ID)
   }
   _, _ = s.ensurePlan(userID)
-  http.Redirect(w, r, "/admin/plans/"+userID+"?success=План%20пересобран", http.StatusSeeOther)
+  adminPlanRedirect(w, r, userID, "success", "План пересобран")
 }
 
 func (s *Site) adminPlanPause(w http.ResponseWriter, r *http.Request) {
   userID := chi.URLParam(r, "id")
   if userID == "" {
-    http.Redirect(w, r, "/admin/plans", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "", "")
     return
   }
   if plan, err := s.getActivePlan(userID); err == nil && plan != nil {
     _, _ = s.DB.Exec(`update training_plans set status = 'paused', paused_reason = 'Приостановлено администратором', updated_at = now() where id = $1`, plan.ID)
   }
-  http.Redirect(w, r, "/admin/plans/"+userID+"?success=План%20приостановлен", http.StatusSeeOther)
+  adminPlanRedirect(w, r, userID, "success", "План приостановлен")
+}
+
+func (s *Site) adminPlanPauseSick(w http.ResponseWriter, r *http.Request) {
+  admin := middleware.UserFromContext(r.Context())
+  userID := chi.URLParam(r, "id")
+  if userID == "" {
+    adminPlanRedirect(w, r, "", "", "")
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Некорректные данные")
+    return
+  }
+
+  fromRaw := strings.TrimSpace(r.FormValue("sick_from"))
+  toRaw := strings.TrimSpace(r.FormValue("sick_to"))
+  comment := strings.TrimSpace(r.FormValue("comment"))
+  if fromRaw == "" || toRaw == "" {
+    adminPlanRedirect(w, r, userID, "error", "Укажите период больничного")
+    return
+  }
+
+  fromDate, err := time.Parse("2006-01-02", fromRaw)
+  if err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Некорректная дата начала")
+    return
+  }
+  toDate, err := time.Parse("2006-01-02", toRaw)
+  if err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Некорректная дата окончания")
+    return
+  }
+  if toDate.Before(fromDate) {
+    adminPlanRedirect(w, r, userID, "error", "Дата окончания раньше даты начала")
+    return
+  }
+
+  plan, err := s.getActivePlan(userID)
+  if err != nil || plan == nil {
+    adminPlanRedirect(w, r, userID, "error", "План не найден")
+    return
+  }
+
+  daysCount := int(toDate.Sub(fromDate).Hours()/24) + 1
+  if daysCount < 1 {
+    daysCount = 1
+  }
+
+  before := s.planSnapshot(plan.ID)
+  result, _ := s.DB.Exec(
+    `update training_plan_workouts
+     set scheduled_date = scheduled_date + ($1::int * interval '1 day')
+     where plan_id = $2
+       and status = 'pending'
+       and scheduled_date is not null
+       and scheduled_date >= $3`,
+    daysCount,
+    plan.ID,
+    fromDate,
+  )
+
+  pauseReason := fmt.Sprintf(
+    "Приостановлено администратором по больничному листу: %s — %s",
+    fromDate.Format("02.01.2006"),
+    toDate.Format("02.01.2006"),
+  )
+  if comment != "" {
+    pauseReason += ". " + comment
+  }
+  _, _ = s.DB.Exec(
+    `update training_plans
+     set status = 'paused',
+         paused_reason = $1,
+         updated_at = now()
+     where id = $2`,
+    pauseReason,
+    plan.ID,
+  )
+
+  var createdBy any
+  if admin != nil && strings.TrimSpace(admin.ID) != "" {
+    createdBy = admin.ID
+  }
+  _, _ = s.DB.Exec(
+    `insert into plan_sick_leaves (plan_id, user_id, start_date, end_date, days_count, comment, created_by)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    plan.ID,
+    userID,
+    fromDate,
+    toDate,
+    daysCount,
+    nullIfEmpty(comment),
+    createdBy,
+  )
+
+  shifted := int(affectedRows(result))
+  after := s.planSnapshot(plan.ID)
+  changeReason := fmt.Sprintf(
+    "Больничный %s — %s: сдвиг тренировок на %d дн. (перенесено: %d)",
+    fromDate.Format("02.01.2006"),
+    toDate.Format("02.01.2006"),
+    daysCount,
+    shifted,
+  )
+  s.logPlanChange(userID, plan.ID, "sick_leave", changeReason, before, after)
+
+  adminPlanRedirect(w, r, userID, "success", "План приостановлен по больничному")
 }
 
 func (s *Site) adminPlanResume(w http.ResponseWriter, r *http.Request) {
   userID := chi.URLParam(r, "id")
   if userID == "" {
-    http.Redirect(w, r, "/admin/plans", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "", "")
     return
   }
   if plan, err := s.getActivePlan(userID); err == nil && plan != nil {
     _, _ = s.DB.Exec(`update training_plans set status = 'active', paused_reason = null, updated_at = now() where id = $1`, plan.ID)
   }
-  http.Redirect(w, r, "/admin/plans/"+userID+"?success=План%20возобновлен", http.StatusSeeOther)
+  adminPlanRedirect(w, r, userID, "success", "План возобновлен")
 }
 
 func (s *Site) adminPlanDelete(w http.ResponseWriter, r *http.Request) {
   userID := chi.URLParam(r, "id")
   if userID == "" {
-    http.Redirect(w, r, "/admin/plans?error=Не%20найден%20сотрудник", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "error", "Не найден сотрудник")
     return
   }
 
   if _, err := s.DB.Exec(`delete from training_plans where user_id = $1`, userID); err != nil {
-    http.Redirect(w, r, "/admin/plans?error=Не%20удалось%20удалить%20план", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "error", "Не удалось удалить план")
     return
   }
-  http.Redirect(w, r, "/admin/plans?success=Планы%20сотрудника%20удалены", http.StatusSeeOther)
+  adminPlanRedirect(w, r, "", "success", "Планы сотрудника удалены")
 }
 
 func (s *Site) adminPlanWorkoutReplace(w http.ResponseWriter, r *http.Request) {
   userID := chi.URLParam(r, "id")
   planWorkoutID := chi.URLParam(r, "planWorkoutId")
   if userID == "" || planWorkoutID == "" {
-    http.Redirect(w, r, "/admin/plans", http.StatusSeeOther)
+    adminPlanRedirect(w, r, "", "", "")
     return
   }
   if err := r.ParseForm(); err != nil {
-    http.Redirect(w, r, "/admin/plans/"+userID+"?error=Некорректные%20данные", http.StatusSeeOther)
+    adminPlanRedirect(w, r, userID, "error", "Некорректные данные")
     return
   }
   workoutID := r.FormValue("workout_id")
   if workoutID == "" {
-    http.Redirect(w, r, "/admin/plans/"+userID+"?error=Выберите%20тренировку", http.StatusSeeOther)
+    adminPlanRedirect(w, r, userID, "error", "Выберите тренировку")
     return
   }
   _, err := s.DB.Exec(
@@ -1290,8 +1425,75 @@ func (s *Site) adminPlanWorkoutReplace(w http.ResponseWriter, r *http.Request) {
     planWorkoutID,
   )
   if err != nil {
-    http.Redirect(w, r, "/admin/plans/"+userID+"?error=Не%20удалось%20обновить", http.StatusSeeOther)
+    adminPlanRedirect(w, r, userID, "error", "Не удалось обновить")
     return
   }
-  http.Redirect(w, r, "/admin/plans/"+userID+"?success=Тренировка%20заменена", http.StatusSeeOther)
+  adminPlanRedirect(w, r, userID, "success", "Тренировка заменена")
+}
+
+func (s *Site) adminPlanWorkoutReschedule(w http.ResponseWriter, r *http.Request) {
+  userID := chi.URLParam(r, "id")
+  planWorkoutID := chi.URLParam(r, "planWorkoutId")
+  if userID == "" || planWorkoutID == "" {
+    adminPlanRedirect(w, r, "", "", "")
+    return
+  }
+  if err := r.ParseForm(); err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Некорректные данные")
+    return
+  }
+
+  scheduledDateRaw := strings.TrimSpace(r.FormValue("scheduled_date"))
+  if scheduledDateRaw == "" {
+    adminPlanRedirect(w, r, userID, "error", "Укажите дату тренировки")
+    return
+  }
+  scheduledDate, err := time.Parse("2006-01-02", scheduledDateRaw)
+  if err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Некорректная дата тренировки")
+    return
+  }
+
+  var planID string
+  var status string
+  err = s.DB.QueryRow(
+    `select pw.plan_id, pw.status
+     from training_plan_workouts pw
+     join training_plans tp on tp.id = pw.plan_id
+     where pw.id = $1 and tp.user_id = $2`,
+    planWorkoutID,
+    userID,
+  ).Scan(&planID, &status)
+  if err != nil {
+    adminPlanRedirect(w, r, userID, "error", "Тренировка плана не найдена")
+    return
+  }
+  if status != "pending" {
+    adminPlanRedirect(w, r, userID, "error", "Можно изменять дату только запланированной тренировки")
+    return
+  }
+
+  before := s.planSnapshot(planID)
+  result, err := s.DB.Exec(
+    `update training_plan_workouts
+     set scheduled_date = $1
+     where id = $2 and status = 'pending'`,
+    scheduledDate,
+    planWorkoutID,
+  )
+  if err != nil || affectedRows(result) == 0 {
+    adminPlanRedirect(w, r, userID, "error", "Не удалось изменить дату тренировки")
+    return
+  }
+
+  after := s.planSnapshot(planID)
+  s.logPlanChange(
+    userID,
+    planID,
+    "reschedule",
+    "Администратор изменил дату тренировки на "+scheduledDate.Format("02.01.2006"),
+    before,
+    after,
+  )
+  adminPlanRedirect(w, r, userID, "success", "Дата тренировки обновлена")
 }

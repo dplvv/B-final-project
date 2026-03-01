@@ -124,6 +124,14 @@ type intensityStat struct {
   Count int
 }
 
+type departmentStatView struct {
+  Department   string
+  Employees    int
+  Workouts     int
+  Minutes      int
+  AvgTolerance int
+}
+
 type profileView struct {
   User         models.User
   Age          int
@@ -305,9 +313,11 @@ func (s *Site) Router() chi.Router {
       ar.Get("/plans/{id}", s.adminPlanDetail)
       ar.Post("/plans/{id}/regenerate", s.adminPlanRegenerate)
       ar.Post("/plans/{id}/pause", s.adminPlanPause)
+      ar.Post("/plans/{id}/pause-sick", s.adminPlanPauseSick)
       ar.Post("/plans/{id}/resume", s.adminPlanResume)
       ar.Post("/plans/{id}/delete", s.adminPlanDelete)
       ar.Post("/plans/{id}/workouts/{planWorkoutId}/replace", s.adminPlanWorkoutReplace)
+      ar.Post("/plans/{id}/workouts/{planWorkoutId}/reschedule", s.adminPlanWorkoutReschedule)
       ar.Post("/users/create", s.adminUserCreate)
       ar.Post("/users/{id}/update", s.adminUserUpdate)
       ar.Post("/users/{id}/delete", s.adminUserDelete)
@@ -331,6 +341,7 @@ func (s *Site) baseData(r *http.Request, title, active string) map[string]any {
     "User":   user,
   }
   if user != nil {
+    s.expireOverduePlanWorkouts(user.ID, time.Now())
     notifications := s.loadNotifications(user.ID)
     data["Notifications"] = notifications
     data["NotificationsCount"] = len(notifications)
@@ -1020,6 +1031,7 @@ func (s *Site) workoutDetail(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) startWorkout(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  s.expireOverduePlanWorkouts(user.ID, time.Now())
   if s.ensureOnboarding(w, r, user.ID) {
     return
   }
@@ -1039,7 +1051,7 @@ func (s *Site) startWorkout(w http.ResponseWriter, r *http.Request) {
   var planWorkoutID string
   var status string
   var existingSessionID string
-  _ = s.DB.QueryRow(
+  err := s.DB.QueryRow(
     `select pw.id, pw.status, coalesce(pw.session_id::text, '')
      from training_plan_workouts pw
      join training_plans tp on tp.id = pw.plan_id
@@ -1047,12 +1059,38 @@ func (s *Site) startWorkout(w http.ResponseWriter, r *http.Request) {
        and tp.status in ('active', 'paused')
        and pw.workout_id = $2
        and pw.status in ('pending', 'in_progress')
+       and (pw.scheduled_date is null or pw.scheduled_date = current_date)
      order by case when pw.status = 'in_progress' then 0 else 1 end,
               pw.scheduled_date nulls last, pw.week, pw.day
      limit 1`,
     user.ID,
     workoutID,
   ).Scan(&planWorkoutID, &status, &existingSessionID)
+  if err != nil && !errors.Is(err, sql.ErrNoRows) {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
+
+  if planWorkoutID == "" {
+    var blockedCount int
+    _ = s.DB.QueryRow(
+      `select count(*)
+       from training_plan_workouts pw
+       join training_plans tp on tp.id = pw.plan_id
+       where tp.user_id = $1
+         and tp.status in ('active', 'paused')
+         and pw.workout_id = $2
+         and pw.status in ('pending', 'in_progress')
+         and pw.scheduled_date is not null
+         and pw.scheduled_date <> current_date`,
+      user.ID,
+      workoutID,
+    ).Scan(&blockedCount)
+    if blockedCount > 0 {
+      http.Redirect(w, r, "/program", http.StatusSeeOther)
+      return
+    }
+  }
 
   if existingSessionID != "" {
     http.Redirect(w, r, "/sessions/"+existingSessionID, http.StatusSeeOther)
@@ -1074,6 +1112,7 @@ func (s *Site) startWorkout(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) sessionDetail(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  s.expireOverduePlanWorkouts(user.ID, time.Now())
   sessionID := chi.URLParam(r, "id")
   if sessionID == "" {
     http.NotFound(w, r)
@@ -1099,7 +1138,14 @@ func (s *Site) sessionCompleteSet(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  _ = s.completeSet(user.ID, sessionID)
+  if !s.sessionScheduledForToday(user.ID, sessionID) {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
+  if err := s.completeSet(user.ID, sessionID); err != nil {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
   http.Redirect(w, r, "/sessions/"+sessionID, http.StatusSeeOther)
 }
 
@@ -1111,7 +1157,14 @@ func (s *Site) sessionComplete(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  _ = s.completeWorkoutSession(user.ID, sessionID)
+  if !s.sessionScheduledForToday(user.ID, sessionID) {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
+  if err := s.completeWorkoutSession(user.ID, sessionID); err != nil {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
   http.Redirect(w, r, "/sessions/"+sessionID, http.StatusSeeOther)
 }
 
@@ -1313,11 +1366,14 @@ func (s *Site) programDetail(w http.ResponseWriter, r *http.Request) {
   }
 
   var program programCard
+  var musclesRaw string
   err := s.DB.QueryRow(
-    `select p.id, p.name, p.description, coalesce(p.muscle_groups, '{}')
+    `select p.id, p.name, p.description,
+            coalesce(replace(replace(replace(p.muscle_groups::text, '{', ''), '}', ''), '"', ''), '')
      from programs p where p.id = $1`,
     programID,
-  ).Scan(&program.ID, &program.Name, &program.Description, &program.MuscleGroups)
+  ).Scan(&program.ID, &program.Name, &program.Description, &musclesRaw)
+  program.MuscleGroups = parseCSV(musclesRaw)
   if err != nil {
     http.NotFound(w, r)
     return
@@ -1490,22 +1546,38 @@ func (s *Site) pickExercises(category, difficulty string, limit int) []string {
 
 func (s *Site) fetchPrograms() []programCard {
   rows, err := s.DB.Query(
-    `select p.id, p.name, p.description, coalesce(p.muscle_groups, '{}')
+    `select p.id,
+            p.name,
+            p.description,
+            coalesce(replace(replace(replace(p.muscle_groups::text, '{', ''), '}', ''), '"', ''), '') as muscle_groups_raw
      from programs p
-     where p.active = true
-     order by p.created_at`,
+     order by coalesce(p.active, true) desc, p.created_at`,
   )
   if err != nil {
-    return nil
+    log.Printf("fetchPrograms primary query failed: %v", err)
+    rows, err = s.DB.Query(
+      `select p.id,
+              p.name,
+              p.description,
+              coalesce(replace(replace(replace(p.muscle_groups::text, '{', ''), '}', ''), '"', ''), '') as muscle_groups_raw
+       from programs p
+       order by p.created_at`,
+    )
+    if err != nil {
+      log.Printf("fetchPrograms fallback query failed: %v", err)
+      return nil
+    }
   }
   defer rows.Close()
 
   programs := []programCard{}
   for rows.Next() {
     var p programCard
-    if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.MuscleGroups); err != nil {
+    var musclesRaw string
+    if err := rows.Scan(&p.ID, &p.Name, &p.Description, &musclesRaw); err != nil {
       continue
     }
+    p.MuscleGroups = parseCSV(musclesRaw)
     var workouts int
     var duration int
     _ = s.DB.QueryRow(
@@ -1669,18 +1741,27 @@ func (s *Site) buildSessionView(userID, sessionID string) (*sessionView, error) 
 }
 
 func (s *Site) completeSet(userID, sessionID string) error {
+  s.expireOverduePlanWorkouts(userID, time.Now())
+  if !s.sessionScheduledForToday(userID, sessionID) {
+    return errors.New("session_out_of_schedule")
+  }
+
   var ownerID string
   var startedAt time.Time
   var lastSet sql.NullTime
+  var completedAt sql.NullTime
   err := s.DB.QueryRow(
-    "select user_id, started_at, last_set_completed_at from workout_sessions where id = $1",
+    "select user_id, started_at, last_set_completed_at, completed_at from workout_sessions where id = $1",
     sessionID,
-  ).Scan(&ownerID, &startedAt, &lastSet)
+  ).Scan(&ownerID, &startedAt, &lastSet, &completedAt)
   if err != nil {
     return err
   }
   if ownerID != userID {
     return errors.New("forbidden")
+  }
+  if completedAt.Valid {
+    return nil
   }
 
   var exID string
@@ -1724,8 +1805,8 @@ func (s *Site) completeSet(userID, sessionID string) error {
   if lastSet.Valid {
     setStart = lastSet.Time
   }
-  completedAt := time.Now()
-  durationSeconds := int(completedAt.Sub(setStart).Seconds())
+  setCompletedAt := time.Now()
+  durationSeconds := int(setCompletedAt.Sub(setStart).Seconds())
   if durationSeconds < 0 {
     durationSeconds = 0
   }
@@ -1736,10 +1817,10 @@ func (s *Site) completeSet(userID, sessionID string) error {
     exID,
     completedSets,
     setStart,
-    completedAt,
+    setCompletedAt,
     durationSeconds,
   )
-  _, _ = s.DB.Exec(`update workout_sessions set last_set_completed_at = $1 where id = $2`, completedAt, sessionID)
+  _, _ = s.DB.Exec(`update workout_sessions set last_set_completed_at = $1 where id = $2`, setCompletedAt, sessionID)
 
   if completed {
     _, _ = s.DB.Exec(
@@ -1763,6 +1844,11 @@ func (s *Site) completeSet(userID, sessionID string) error {
 }
 
 func (s *Site) completeWorkoutSession(userID, sessionID string) error {
+  s.expireOverduePlanWorkouts(userID, time.Now())
+  if !s.sessionScheduledForToday(userID, sessionID) {
+    return errors.New("session_out_of_schedule")
+  }
+
   var ownerID string
   var completedAt sql.NullTime
   var startedAt time.Time
@@ -2050,6 +2136,22 @@ func normalizeResourceID(value string) string {
   trimmed = strings.Trim(trimmed, "{}")
   trimmed = strings.ToLower(trimmed)
   return trimmed
+}
+
+func (s *Site) sessionScheduledForToday(userID, sessionID string) bool {
+  var allowed bool
+  err := s.DB.QueryRow(
+    `select coalesce(pw.scheduled_date = current_date, true)
+     from workout_sessions ws
+     left join training_plan_workouts pw on pw.id = ws.plan_workout_id
+     where ws.id = $1 and ws.user_id = $2`,
+    sessionID,
+    userID,
+  ).Scan(&allowed)
+  if err != nil {
+    return false
+  }
+  return allowed
 }
 
 func uniqueStrings(exercises []exerciseCard, selector func(exerciseCard) []string) []string {

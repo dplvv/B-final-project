@@ -25,6 +25,7 @@
         <div><strong>Уровень:</strong> {{ .Plan.Level }}</div>
         <div><strong>Частота:</strong> {{ .Plan.Frequency }} раз/нед</div>
         <div><strong>Статус:</strong> {{ statusLabel .Plan.Status }}</div>
+        {{ if .Plan.PausedReason }}<div><strong>Причина паузы:</strong> {{ .Plan.PausedReason }}</div>{{ end }}
       </div>
       <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
         <form method="post" action="/admin/plans/{{ .UserID }}/regenerate">
@@ -43,6 +44,23 @@
           <button class="button danger" type="submit">Удалить план</button>
         </form>
       </div>
+      <form class="form" method="post" action="/admin/plans/{{ .UserID }}/pause-sick" style="margin-top: 14px;">
+        <div class="grid cols-3">
+          <div class="form-group">
+            <label>Больничный с</label>
+            <input type="date" name="sick_from" required />
+          </div>
+          <div class="form-group">
+            <label>Больничный по</label>
+            <input type="date" name="sick_to" required />
+          </div>
+          <div class="form-group">
+            <label>Комментарий</label>
+            <input type="text" name="comment" placeholder="Номер листа / примечание" />
+          </div>
+        </div>
+        <button class="button secondary" type="submit">Приостановить по больничному</button>
+      </form>
     </div>
     <div class="card">
       <div class="card-header">
@@ -61,6 +79,7 @@
         <tr>
           <th>Неделя/день</th>
           <th>Тренировка</th>
+          <th>Дата</th>
           <th>Статус</th>
           <th>Замена</th>
         </tr>
@@ -70,6 +89,17 @@
           <tr>
             <td>Неделя {{ .Week }}, день {{ .Day }}</td>
             <td>{{ .Name }}</td>
+            <td>
+              <div>{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}—{{ end }}</div>
+              {{ if eq .Status "pending" }}
+                <form method="post" action="/admin/plans/{{ $.UserID }}/workouts/{{ .ID }}/reschedule" class="inline-form" style="margin-top: 8px;">
+                  <input type="date" name="scheduled_date" value="{{ .ScheduledDateISO }}" required />
+                  <button class="button secondary" type="submit">Сменить дату</button>
+                </form>
+              {{ else }}
+                <div class="muted" style="margin-top: 6px;">Доступно для статуса «Запланировано»</div>
+              {{ end }}
+            </td>
             <td>{{ statusLabel .Status }}</td>
             <td>
               <form method="post" action="/admin/plans/{{ $.UserID }}/workouts/{{ .ID }}/replace" class="inline-form">
@@ -85,7 +115,7 @@
           </tr>
         {{ else }}
           <tr>
-            <td colspan="4">Тренировок нет. Пересоберите план.</td>
+            <td colspan="5">Тренировок нет. Пересоберите план.</td>
           </tr>
         {{ end }}
       </tbody>

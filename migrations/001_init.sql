@@ -109,6 +109,18 @@ create table if not exists training_plans (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists plan_sick_leaves (
+  id uuid primary key default uuid_generate_v4(),
+  plan_id uuid references training_plans(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  start_date date not null,
+  end_date date not null,
+  days_count int not null,
+  comment text,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists training_plan_workouts (
   id uuid primary key default uuid_generate_v4(),
   plan_id uuid references training_plans(id) on delete cascade,
@@ -288,12 +300,21 @@ create index if not exists idx_plan_user on training_plans(user_id);
 create index if not exists idx_plan_workouts_plan on training_plan_workouts(plan_id);
 create index if not exists idx_plan_workouts_status on training_plan_workouts(status);
 create index if not exists idx_plan_changes_plan on training_plan_changes(plan_id);
+create index if not exists idx_plan_sick_leaves_user on plan_sick_leaves(user_id);
+create index if not exists idx_plan_sick_leaves_plan on plan_sick_leaves(plan_id);
 create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
 create index if not exists idx_password_reset_status on password_reset_requests(status);
 alter table user_profiles
   add column if not exists notifications_cleared_at timestamptz;
 alter table user_profiles
   add column if not exists birth_date date;
+alter table programs
+  add column if not exists active boolean not null default true;
+alter table programs
+  alter column active set default true;
+update programs
+set active = true
+where active is distinct from true;
 create index if not exists idx_user_profiles_notifications_cleared_at
   on user_profiles(notifications_cleared_at);
 

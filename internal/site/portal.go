@@ -540,7 +540,7 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
   data["Error"] = r.URL.Query().Get("error")
   period := normalizeTrendPeriod(r.URL.Query().Get("period"))
   rangeFilter := parseTrendDateRange(r, time.Now())
-  trendConfig, _, _ := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
+  trendConfig, trendStart, trendEnd := trendPeriodConfigWithRange(period, time.Now(), rangeFilter)
   data["TrendPeriod"] = period
   data["TrendBadge"] = trendConfig.Badge
   data["TrendDateFrom"] = rangeFilter.FromValue
@@ -643,6 +643,7 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
     }
   }
   data["IntensityStats"] = intensityStats
+  data["DepartmentStats"] = s.loadDepartmentStats(trendStart, trendEnd)
 
   rows, err = s.DB.Query(
     `select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
@@ -1074,6 +1075,67 @@ func (s *Site) managerRedemptionAllowed(user *models.User, redemptionID string) 
     return false
   }
   return strings.EqualFold(dept, user.Department)
+}
+
+func (s *Site) loadDepartmentStats(start, end time.Time) []departmentStatView {
+  rows, err := s.DB.Query(
+    `with employee_base as (
+       select id,
+              coalesce(nullif(trim(department), ''), 'Без отдела') as department
+       from users
+       where role = 'employee'
+     ),
+     workout_stat as (
+       select ws.user_id,
+              count(*) as workouts,
+              coalesce(sum(ws.duration_minutes), 0) as minutes
+       from workout_sessions ws
+       where ws.completed_at is not null
+         and ws.completed_at >= $1
+         and ws.completed_at < $2
+       group by ws.user_id
+     ),
+     feedback_stat as (
+       select f.user_id,
+              avg(coalesce(f.tolerance, 0)) as tolerance
+       from workout_session_feedback f
+       where f.created_at >= $1
+         and f.created_at < $2
+       group by f.user_id
+     )
+     select eb.department,
+            count(*) as employees,
+            coalesce(sum(ws.workouts), 0) as workouts,
+            coalesce(sum(ws.minutes), 0) as minutes,
+            coalesce(avg(fs.tolerance), 0) as avg_tolerance
+     from employee_base eb
+     left join workout_stat ws on ws.user_id = eb.id
+     left join feedback_stat fs on fs.user_id = eb.id
+     group by eb.department
+     order by workouts desc, eb.department`,
+    start,
+    end,
+  )
+  if err != nil {
+    return nil
+  }
+  defer rows.Close()
+
+  stats := []departmentStatView{}
+  for rows.Next() {
+    var item departmentStatView
+    var avgTolerance float64
+    _ = rows.Scan(&item.Department, &item.Employees, &item.Workouts, &item.Minutes, &avgTolerance)
+    item.AvgTolerance = int(avgTolerance + 0.5)
+    if item.AvgTolerance < 0 {
+      item.AvgTolerance = 0
+    }
+    if item.AvgTolerance > 5 {
+      item.AvgTolerance = 5
+    }
+    stats = append(stats, item)
+  }
+  return stats
 }
 
 func ageFromBirthDate(birthDate time.Time, now time.Time) int {

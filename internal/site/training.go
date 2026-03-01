@@ -47,9 +47,11 @@ type planWorkoutView struct {
   Day           int
   Intensity     int
   ScheduledDate string
+  ScheduledDateISO string
   Status        string
   SkipReason    string
   SessionID     string
+  StartAllowed  bool
 }
 
 type planCalendarDay struct {
@@ -315,6 +317,7 @@ func (s *Site) planRegenerate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Site) planWorkoutStart(w http.ResponseWriter, r *http.Request) {
   user := middleware.UserFromContext(r.Context())
+  s.expireOverduePlanWorkouts(user.ID, time.Now())
   if !s.requireDoctorApproval(w, r, user.ID) {
     return
   }
@@ -328,10 +331,13 @@ func (s *Site) planWorkoutStart(w http.ResponseWriter, r *http.Request) {
   var planID string
   var status string
   var sessionID sql.NullString
+  var startAllowed bool
   err := s.DB.QueryRow(
-    `select workout_id, plan_id, status, session_id from training_plan_workouts where id = $1`,
+    `select workout_id, plan_id, status, session_id, coalesce(scheduled_date = current_date, true)
+     from training_plan_workouts
+     where id = $1`,
     planWorkoutID,
-  ).Scan(&workoutID, &planID, &status, &sessionID)
+  ).Scan(&workoutID, &planID, &status, &sessionID, &startAllowed)
   if err != nil {
     http.NotFound(w, r)
     return
@@ -339,6 +345,14 @@ func (s *Site) planWorkoutStart(w http.ResponseWriter, r *http.Request) {
 
   if !s.planOwnedByUser(planID, user.ID) {
     http.Error(w, "Доступ запрещён", http.StatusForbidden)
+    return
+  }
+  if status != "pending" && status != "in_progress" {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
+    return
+  }
+  if !startAllowed {
+    http.Redirect(w, r, "/program", http.StatusSeeOther)
     return
   }
 
@@ -548,6 +562,54 @@ func (s *Site) loadNotifications(userID string) []planChangeView {
     }
   }
 
+  now := time.Now()
+  location := now.Location()
+  today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+  tomorrow := today.AddDate(0, 0, 1)
+  afterTomorrow := tomorrow.AddDate(0, 0, 1)
+  rows, err = s.DB.Query(
+    `select pw.scheduled_date, w.name, pw.intensity
+     from training_plan_workouts pw
+     join training_plans tp on tp.id = pw.plan_id
+     join workouts w on w.id = pw.workout_id
+     where tp.user_id = $1
+       and tp.status = 'active'
+       and pw.status = 'pending'
+       and pw.scheduled_date is not null
+       and pw.scheduled_date >= $2
+       and pw.scheduled_date < $3
+     order by pw.scheduled_date, pw.week, pw.day`,
+    userID,
+    today,
+    afterTomorrow,
+  )
+  if err == nil {
+    defer rows.Close()
+    for rows.Next() {
+      var scheduledDate time.Time
+      var workoutName string
+      var intensity int
+      _ = rows.Scan(&scheduledDate, &workoutName, &intensity)
+      scheduledLocal := scheduledDate.In(location)
+      scheduledDay := time.Date(scheduledLocal.Year(), scheduledLocal.Month(), scheduledLocal.Day(), 0, 0, 0, 0, location)
+      reminderTime := time.Date(scheduledDay.Year(), scheduledDay.Month(), scheduledDay.Day(), 8, 0, 0, 0, location)
+      if !reminderTime.After(clearedAt) {
+        continue
+      }
+      label := "завтра"
+      if scheduledDay.Equal(today) {
+        label = "сегодня"
+      } else if scheduledDay.Equal(tomorrow) {
+        label = "завтра"
+      }
+      reason := "Напоминание: " + label + " тренировка «" + workoutName + "»"
+      if intensity > 0 {
+        reason += " (интенсивность " + strconv.Itoa(intensity) + ")"
+      }
+      entries = append(entries, historyEntry{When: reminderTime, Reason: reason})
+    }
+  }
+
   sort.Slice(entries, func(i, j int) bool {
     return entries[i].When.After(entries[j].When)
   })
@@ -737,34 +799,16 @@ func (s *Site) generatePlan(userID string) (*planRecord, error) {
   restrictions := s.loadRestrictions(userID)
   doctorApproval := s.loadDoctorApproval(userID)
 
-  level := resolveLevel(q.FitnessLevel)
-  frequency := q.DaysPerWeek
-  if frequency <= 0 {
-    frequency = 3
-  }
-  if frequency > 7 {
-    frequency = 7
-  }
-  if !doctorApproval {
-    level = "Легкая"
-  }
+  level := resolvePlanLevel(q.FitnessLevel, doctorApproval)
+  frequency := normalizePlanFrequency(q.DaysPerWeek)
 
   goalCategories := categoriesForGoal(q.Goal)
   preferenceCategories := categoriesFromPreferences(q.Preferences)
   categories := mergeCategories(goalCategories, preferenceCategories)
-  availableEquipment := normalizeEquipmentSelection(q.Equipment)
-  if len(availableEquipment) == 0 && !prefersNoEquipment(q.Preferences) {
-    availableEquipment = []string{"Коврик"}
-  }
+  availableEquipment, noEquipmentOnly := resolveAvailableEquipment(q.Equipment, q.Preferences)
 
-  workouts := s.fetchWorkouts(level, categories, restrictions, availableEquipment)
-  if len(workouts) == 0 && len(categories) > 0 {
-    workouts = s.fetchWorkouts(level, []string{}, restrictions, availableEquipment)
-  }
-  targetMinutes := sessionMinutesForLevel(level)
-  if !doctorApproval && targetMinutes > 30 {
-    targetMinutes = 30
-  }
+  workouts := s.selectPlanWorkouts(level, frequency, categories, restrictions, availableEquipment, noEquipmentOnly)
+  targetMinutes := targetPlanMinutes(level, doctorApproval)
   if filtered := filterWorkoutsByDuration(workouts, targetMinutes, 10); len(filtered) > 0 {
     workouts = filtered
   }
@@ -842,10 +886,72 @@ func (s *Site) generatePlan(userID string) (*planRecord, error) {
   }, nil
 }
 
+func normalizePlanFrequency(daysPerWeek int) int {
+  frequency := daysPerWeek
+  if frequency <= 0 {
+    frequency = 3
+  }
+  if frequency > 7 {
+    frequency = 7
+  }
+  return frequency
+}
+
+func resolvePlanLevel(fitnessLevel string, doctorApproval bool) string {
+  level := resolveLevel(fitnessLevel)
+  if !doctorApproval {
+    return "Легкая"
+  }
+  return level
+}
+
+func targetPlanMinutes(level string, doctorApproval bool) int {
+  targetMinutes := sessionMinutesForLevel(level)
+  if !doctorApproval && targetMinutes > 30 {
+    return 30
+  }
+  return targetMinutes
+}
+
+func resolveAvailableEquipment(questionnaireEquipment []string, preferences string) ([]string, bool) {
+  availableEquipment := normalizeEquipmentSelection(questionnaireEquipment)
+  noEquipmentOnly := containsEquipmentValue(availableEquipment, "Без инвентаря")
+  if noEquipmentOnly {
+    return []string{}, true
+  }
+  if len(availableEquipment) == 0 && !prefersNoEquipment(preferences) {
+    return []string{"Коврик"}, false
+  }
+  return availableEquipment, false
+}
+
+func (s *Site) selectPlanWorkouts(level string, frequency int, categories, restrictions, availableEquipment []string, noEquipmentOnly bool) []workoutCard {
+  workouts := s.fetchWorkouts(level, categories, restrictions, availableEquipment)
+  minWorkouts := frequency
+  if minWorkouts < 2 {
+    minWorkouts = 2
+  }
+
+  if len(workouts) < minWorkouts && len(categories) > 0 {
+    workouts = mergeWorkoutCards(workouts, s.fetchWorkouts(level, []string{}, restrictions, availableEquipment))
+  }
+
+  if len(workouts) < minWorkouts && !noEquipmentOnly {
+    relaxedEquipment := mergeEquipmentOptions(availableEquipment, []string{"Коврик", "Стул"})
+    workouts = mergeWorkoutCards(workouts, s.fetchWorkouts(level, categories, restrictions, relaxedEquipment))
+    if len(workouts) < minWorkouts && len(categories) > 0 {
+      workouts = mergeWorkoutCards(workouts, s.fetchWorkouts(level, []string{}, restrictions, relaxedEquipment))
+    }
+  }
+
+  return workouts
+}
+
 func (s *Site) fetchPlanWorkouts(planID string) []planWorkoutView {
   rows, err := s.DB.Query(
     `select pw.id, w.id, w.name, w.description, w.difficulty, coalesce(w.category, ''), w.duration_minutes,
-            pw.week, pw.day, pw.scheduled_date, pw.intensity, pw.status, coalesce(pw.skip_reason, ''), coalesce(pw.session_id::text, '')
+            pw.week, pw.day, pw.scheduled_date, pw.intensity, pw.status, coalesce(pw.skip_reason, ''), coalesce(pw.session_id::text, ''),
+            coalesce(pw.scheduled_date = current_date, true)
      from training_plan_workouts pw
      join workouts w on w.id = pw.workout_id
      where pw.plan_id = $1
@@ -862,9 +968,10 @@ func (s *Site) fetchPlanWorkouts(planID string) []planWorkoutView {
     var v planWorkoutView
     var date sql.NullTime
     _ = rows.Scan(&v.ID, &v.WorkoutID, &v.Name, &v.Description, &v.Difficulty, &v.Category, &v.Duration,
-      &v.Week, &v.Day, &date, &v.Intensity, &v.Status, &v.SkipReason, &v.SessionID)
+      &v.Week, &v.Day, &date, &v.Intensity, &v.Status, &v.SkipReason, &v.SessionID, &v.StartAllowed)
     if date.Valid {
       v.ScheduledDate = date.Time.Format("02.01.2006")
+      v.ScheduledDateISO = date.Time.Format("2006-01-02")
     }
     list = append(list, v)
   }
@@ -907,17 +1014,19 @@ func (s *Site) fetchNextPlanWorkout(userID string) (*planWorkoutView, error) {
   var date sql.NullTime
   err := s.DB.QueryRow(
     `select pw.id, w.id, w.name, w.description, w.difficulty, coalesce(w.category, ''), w.duration_minutes,
-            pw.week, pw.day, pw.scheduled_date, pw.intensity, pw.status, coalesce(pw.skip_reason, ''), coalesce(pw.session_id::text, '')
+            pw.week, pw.day, pw.scheduled_date, pw.intensity, pw.status, coalesce(pw.skip_reason, ''), coalesce(pw.session_id::text, ''),
+            coalesce(pw.scheduled_date = current_date, true)
      from training_plan_workouts pw
      join training_plans tp on tp.id = pw.plan_id
      join workouts w on w.id = pw.workout_id
      where tp.user_id = $1 and tp.status in ('active', 'paused')
        and pw.status in ('pending', 'in_progress')
+       and (pw.scheduled_date is null or pw.scheduled_date >= current_date)
      order by pw.scheduled_date nulls last, pw.week, pw.day
      limit 1`,
     userID,
   ).Scan(&v.ID, &v.WorkoutID, &v.Name, &v.Description, &v.Difficulty, &v.Category, &v.Duration,
-    &v.Week, &v.Day, &date, &v.Intensity, &v.Status, &v.SkipReason, &v.SessionID)
+    &v.Week, &v.Day, &date, &v.Intensity, &v.Status, &v.SkipReason, &v.SessionID, &v.StartAllowed)
   if err != nil {
     if err == sql.ErrNoRows {
       return nil, nil
@@ -926,8 +1035,93 @@ func (s *Site) fetchNextPlanWorkout(userID string) (*planWorkoutView, error) {
   }
   if date.Valid {
     v.ScheduledDate = date.Time.Format("02.01.2006")
+    v.ScheduledDateISO = date.Time.Format("2006-01-02")
   }
   return &v, nil
+}
+
+func (s *Site) expireOverduePlanWorkouts(userID string, now time.Time) int {
+  if strings.TrimSpace(userID) == "" {
+    return 0
+  }
+
+  cutoff := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+  type overdueWorkout struct {
+    PlanID        string
+    PlanWorkoutID string
+    SessionID     string
+  }
+  overdue := []overdueWorkout{}
+
+  rows, err := s.DB.Query(
+    `select pw.plan_id, pw.id, coalesce(pw.session_id::text, '')
+     from training_plan_workouts pw
+     join training_plans tp on tp.id = pw.plan_id
+     where tp.user_id = $1
+       and tp.status = 'active'
+       and pw.status in ('pending', 'in_progress')
+       and pw.scheduled_date is not null
+       and pw.scheduled_date < $2
+     order by pw.plan_id, pw.scheduled_date, pw.week, pw.day`,
+    userID,
+    cutoff,
+  )
+  if err != nil {
+    return 0
+  }
+  defer rows.Close()
+
+  for rows.Next() {
+    var item overdueWorkout
+    _ = rows.Scan(&item.PlanID, &item.PlanWorkoutID, &item.SessionID)
+    overdue = append(overdue, item)
+  }
+  if len(overdue) == 0 {
+    return 0
+  }
+
+  reason := "Автопропуск: тренировка не выполнена в назначенный день"
+  beforeSnapshots := map[string]json.RawMessage{}
+  skippedByPlan := map[string]int{}
+  totalSkipped := 0
+
+  for _, item := range overdue {
+    if _, exists := beforeSnapshots[item.PlanID]; !exists {
+      beforeSnapshots[item.PlanID] = s.planSnapshot(item.PlanID)
+    }
+    if item.SessionID != "" {
+      _, _ = s.DB.Exec(
+        `delete from workout_sessions
+         where id = $1 and completed_at is null`,
+        item.SessionID,
+      )
+    }
+    result, _ := s.DB.Exec(
+      `update training_plan_workouts
+       set status = 'skipped',
+           skip_reason = $1,
+           session_id = null
+       where id = $2 and status in ('pending', 'in_progress')`,
+      reason,
+      item.PlanWorkoutID,
+    )
+    if affectedRows(result) == 0 {
+      continue
+    }
+    skippedByPlan[item.PlanID]++
+    totalSkipped++
+  }
+
+  for planID, skipped := range skippedByPlan {
+    if skipped <= 0 {
+      continue
+    }
+    after := s.planSnapshot(planID)
+    changeReason := "Автопропуск: " + strconv.Itoa(skipped) + " трен. не выполнены в назначенный день"
+    s.logPlanChange(userID, planID, "overdue_miss", changeReason, beforeSnapshots[planID], after)
+  }
+
+  return totalSkipped
 }
 
 func (s *Site) fetchWorkouts(level string, categories []string, restrictions []string, equipment []string) []workoutCard {
@@ -1450,33 +1644,68 @@ func preferenceOptions() []string {
 }
 
 func normalizeEquipmentSelection(list []string) []string {
-  allowed := map[string]string{}
-  for _, item := range equipmentOptions() {
-    allowed[strings.ToLower(strings.TrimSpace(item))] = item
-  }
-
   cleaned := []string{}
   seen := map[string]bool{}
   for _, item := range list {
-    key := strings.ToLower(strings.TrimSpace(item))
-    if key == "" {
+    canonical := canonicalEquipmentName(item)
+    if canonical == "" {
       continue
     }
-    value, ok := allowed[key]
-    if !ok {
-      continue
-    }
-    lower := strings.ToLower(value)
-    if strings.Contains(lower, "без инвентар") || strings.Contains(lower, "без оборуд") {
-      return []string{}
-    }
+    lower := strings.ToLower(canonical)
     if seen[lower] {
       continue
     }
     seen[lower] = true
-    cleaned = append(cleaned, value)
+    cleaned = append(cleaned, canonical)
+  }
+  if containsEquipmentValue(cleaned, "Без инвентаря") {
+    return []string{"Без инвентаря"}
   }
   return cleaned
+}
+
+func containsEquipmentValue(list []string, target string) bool {
+  targetCanonical := strings.ToLower(canonicalEquipmentName(target))
+  if targetCanonical == "" {
+    return false
+  }
+  for _, item := range list {
+    value := strings.ToLower(canonicalEquipmentName(item))
+    if value == "" {
+      continue
+    }
+    if value == targetCanonical {
+      return true
+    }
+  }
+  return false
+}
+
+func mergeEquipmentOptions(base []string, extra []string) []string {
+  merged := append([]string{}, base...)
+  for _, item := range extra {
+    merged = append(merged, item)
+  }
+  return normalizeEquipmentSelection(merged)
+}
+
+func mergeWorkoutCards(primary, secondary []workoutCard) []workoutCard {
+  if len(secondary) == 0 {
+    return primary
+  }
+  merged := append([]workoutCard{}, primary...)
+  seen := map[string]bool{}
+  for _, item := range merged {
+    seen[item.ID] = true
+  }
+  for _, item := range secondary {
+    if seen[item.ID] {
+      continue
+    }
+    seen[item.ID] = true
+    merged = append(merged, item)
+  }
+  return merged
 }
 
 func normalizeSelection(list []string, options []string) []string {
@@ -1518,21 +1747,36 @@ func isAdminPauseReason(reason string) bool {
   return strings.Contains(normalized, "администратор")
 }
 
+func isSickLeavePauseReason(reason string) bool {
+  normalized := strings.ToLower(strings.TrimSpace(reason))
+  return strings.Contains(normalized, "больнич")
+}
+
 func adminPauseLockedForRole(role, status, pausedReason string) bool {
   if status != "paused" {
     return false
   }
+  if isSickLeavePauseReason(pausedReason) {
+    return true
+  }
   if !isAdminPauseReason(pausedReason) {
     return false
   }
-  return strings.ToLower(strings.TrimSpace(role)) != "admin"
+  return !isAdminRole(role)
 }
 
 func planLaunchBlockedForRole(role, status, pausedReason string) bool {
   if status != "paused" {
     return false
   }
-  return !(strings.ToLower(strings.TrimSpace(role)) == "admin" && isAdminPauseReason(pausedReason))
+  if isSickLeavePauseReason(pausedReason) {
+    return true
+  }
+  return !(isAdminRole(role) && isAdminPauseReason(pausedReason))
+}
+
+func isAdminRole(role string) bool {
+  return strings.EqualFold(strings.TrimSpace(role), "admin")
 }
 
 func weeklyOffsets(frequency int) []int {
@@ -1614,16 +1858,64 @@ func (s *Site) loadDoctorApproval(userID string) bool {
 }
 
 func isSubset(need, have []string) bool {
+  noEquipmentOnly := containsEquipmentValue(have, "Без инвентаря")
   allowed := map[string]bool{}
   for _, item := range have {
-    allowed[strings.ToLower(item)] = true
+    canonical := canonicalEquipmentName(item)
+    if canonical == "" {
+      continue
+    }
+    if canonical == "Без инвентаря" {
+      continue
+    }
+    allowed[strings.ToLower(canonical)] = true
   }
   for _, item := range need {
-    if !allowed[strings.ToLower(item)] {
+    canonical := canonicalEquipmentName(item)
+    if canonical == "" {
+      // Окружение вроде стены/пола и неизвестные метки не блокируют подбор.
+      continue
+    }
+    if canonical == "Коврик" {
+      // Коврик считаем базово доступным.
+      continue
+    }
+    if noEquipmentOnly {
+      return false
+    }
+    if !allowed[strings.ToLower(canonical)] {
       return false
     }
   }
   return true
+}
+
+func canonicalEquipmentName(value string) string {
+  v := strings.ToLower(strings.TrimSpace(value))
+  if v == "" {
+    return ""
+  }
+
+  switch {
+  case strings.Contains(v, "без инвентар"), strings.Contains(v, "без оборуд"), strings.Contains(v, "без снар"):
+    return "Без инвентаря"
+  case strings.Contains(v, "коврик"):
+    return "Коврик"
+  case strings.Contains(v, "резин"), strings.Contains(v, "эспандер"):
+    return "Резинка"
+  case strings.Contains(v, "гантел"):
+    return "Гантели"
+  case strings.Contains(v, "стул"):
+    return "Стул"
+  case strings.Contains(v, "фитбол"), strings.Contains(v, "мяч"):
+    return "Фитбол"
+  case strings.Contains(v, "стена"), strings.Contains(v, "пол"), strings.Contains(v, "пространство"):
+    // Базовые условия считаем доступными по умолчанию.
+    return ""
+  default:
+    // Неизвестный инвентарь не должен ломать подбор.
+    return ""
+  }
 }
 
 func nextWeekStart(now time.Time) time.Time {
@@ -1680,6 +1972,7 @@ func (s *Site) attachSessionToPlan(userID, sessionID string) string {
        and tp.status in ('active', 'paused')
        and pw.workout_id = $2
        and pw.status in ('pending', 'in_progress')
+       and (pw.scheduled_date is null or pw.scheduled_date = current_date)
      order by case when pw.status = 'in_progress' then 0 else 1 end,
               pw.scheduled_date nulls last, pw.week, pw.day
      limit 1`,

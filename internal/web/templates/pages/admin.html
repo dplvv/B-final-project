@@ -185,6 +185,39 @@
 
 <div class="card" style="margin-bottom: 24px;">
   <div class="card-header">
+    <div class="card-title">Статистика по отделам</div>
+    <span class="badge">{{ .TrendBadge }}</span>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Отдел</th>
+        <th>Сотрудники</th>
+        <th>Тренировки</th>
+        <th>Минуты</th>
+        <th>Переносимость</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .DepartmentStats }}
+        <tr>
+          <td>{{ .Department }}</td>
+          <td>{{ .Employees }}</td>
+          <td>{{ .Workouts }}</td>
+          <td>{{ .Minutes }}</td>
+          <td>{{ .AvgTolerance }}/5</td>
+        </tr>
+      {{ else }}
+        <tr>
+          <td colspan="5">По выбранному периоду данных нет.</td>
+        </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
     <div class="card-title">Разделы администрирования</div>
   </div>
   <div class="grid cols-3">

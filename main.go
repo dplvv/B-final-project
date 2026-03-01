@@ -28,12 +28,6 @@ func main() {
 		}
 	}
 
-	if cfg.SeedData {
-		if err := db.Seed(database); err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	router := chi.NewRouter()
 	router.Use(middleware.RealIP)
 	router.Use(middleware.StripSlashes)

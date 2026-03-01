@@ -14,7 +14,6 @@ type Config struct {
   CookieSecure     bool
   Environment      string
   RunMigrations    bool
-  SeedData         bool
   AllowSelfRegister bool
 }
 
@@ -28,7 +27,6 @@ func Load() Config {
     CookieSecure:     getEnvBool("COOKIE_SECURE", false),
     Environment:      getEnv("APP_ENV", "development"),
     RunMigrations:    getEnvBool("RUN_MIGRATIONS", true),
-    SeedData:         getEnvBool("SEED_DATA", false),
     AllowSelfRegister: getEnvBool("ALLOW_SELF_REGISTER", false),
   }
 }

@@ -84,6 +84,8 @@
         <div class="notice warning" style="margin-top: 16px;">Допуск врача отсутствует. Запуск тренировок недоступен.</div>
       {{ else if .PlanLaunchBlocked }}
         <div class="notice error" style="margin-top: 16px;">План приостановлен. Запуск недоступен.</div>
+      {{ else if not .NextWorkout.StartAllowed }}
+        <div class="notice warning" style="margin-top: 16px;">Тренировка доступна только в назначенную дату.</div>
       {{ else }}
         {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
           <a class="button primary" href="/sessions/{{ .NextWorkout.SessionID }}" style="margin-top: 18px; display: inline-flex;">Продолжить</a>
