@@ -20,19 +20,10 @@ create table if not exists user_profiles (
   age int,
   fitness_level text,
   goals text[] not null default '{}',
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists questionnaire_responses (
-  user_id uuid primary key references users(id) on delete cascade,
   answers jsonb not null default '{}',
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists medical_info (
-  user_id uuid primary key references users(id) on delete cascade,
   doctor_approval boolean not null default false,
   restrictions text[] not null default '{}',
+  notifications_cleared_at timestamptz,
   updated_at timestamptz not null default now()
 );
 
@@ -89,14 +80,6 @@ create table if not exists program_workouts (
   primary key (program_id, workout_id)
 );
 
-create table if not exists user_programs (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id) on delete cascade,
-  program_id uuid references programs(id) on delete cascade,
-  start_date date not null,
-  active boolean not null default true
-);
-
 create table if not exists training_plans (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete cascade,
@@ -107,18 +90,6 @@ create table if not exists training_plans (
   paused_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
-
-create table if not exists plan_sick_leaves (
-  id uuid primary key default uuid_generate_v4(),
-  plan_id uuid references training_plans(id) on delete cascade,
-  user_id uuid references users(id) on delete cascade,
-  start_date date not null,
-  end_date date not null,
-  days_count int not null,
-  comment text,
-  created_by uuid references users(id) on delete set null,
-  created_at timestamptz not null default now()
 );
 
 create table if not exists training_plan_workouts (
@@ -239,15 +210,6 @@ create table if not exists reward_redemptions (
   approved_by uuid references users(id) on delete set null
 );
 
-create table if not exists incentive_awards (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references users(id) on delete cascade,
-  points int not null,
-  reason text,
-  awarded_by uuid references users(id) on delete set null,
-  awarded_at timestamptz not null default now()
-);
-
 create table if not exists support_tickets (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id) on delete cascade,
@@ -300,14 +262,39 @@ create index if not exists idx_plan_user on training_plans(user_id);
 create index if not exists idx_plan_workouts_plan on training_plan_workouts(plan_id);
 create index if not exists idx_plan_workouts_status on training_plan_workouts(status);
 create index if not exists idx_plan_changes_plan on training_plan_changes(plan_id);
-create index if not exists idx_plan_sick_leaves_user on plan_sick_leaves(user_id);
-create index if not exists idx_plan_sick_leaves_plan on plan_sick_leaves(plan_id);
 create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
 create index if not exists idx_password_reset_status on password_reset_requests(status);
 alter table user_profiles
   add column if not exists notifications_cleared_at timestamptz;
 alter table user_profiles
   add column if not exists birth_date date;
+alter table user_profiles
+  add column if not exists answers jsonb;
+alter table user_profiles
+  add column if not exists doctor_approval boolean;
+alter table user_profiles
+  add column if not exists restrictions text[];
+update user_profiles
+set answers = '{}'::jsonb
+where answers is null;
+update user_profiles
+set doctor_approval = false
+where doctor_approval is null;
+update user_profiles
+set restrictions = '{}'::text[]
+where restrictions is null;
+alter table user_profiles
+  alter column answers set default '{}'::jsonb;
+alter table user_profiles
+  alter column answers set not null;
+alter table user_profiles
+  alter column doctor_approval set default false;
+alter table user_profiles
+  alter column doctor_approval set not null;
+alter table user_profiles
+  alter column restrictions set default '{}'::text[];
+alter table user_profiles
+  alter column restrictions set not null;
 alter table programs
   add column if not exists active boolean not null default true;
 alter table programs
@@ -320,16 +307,12 @@ create index if not exists idx_user_profiles_notifications_cleared_at
 
 do $$
 begin
-  if exists (
-    select 1
-    from information_schema.columns
-    where table_schema = current_schema()
-      and table_name = 'user_profiles'
-      and column_name = 'answers'
-  ) then
-    insert into questionnaire_responses (user_id, answers, updated_at)
-    select up.user_id, coalesce(up.answers, '{}'::jsonb), now()
-    from user_profiles up
+  if to_regclass(current_schema() || '.questionnaire_responses') is not null then
+    insert into user_profiles (user_id, answers, updated_at)
+    select qr.user_id,
+           coalesce(qr.answers, '{}'::jsonb),
+           now()
+    from questionnaire_responses qr
     on conflict (user_id)
     do update set answers = excluded.answers,
                   updated_at = now();
@@ -339,25 +322,13 @@ $$;
 
 do $$
 begin
-  if exists (
-    select 1
-    from information_schema.columns
-    where table_schema = current_schema()
-      and table_name = 'user_profiles'
-      and column_name = 'doctor_approval'
-  ) and exists (
-    select 1
-    from information_schema.columns
-    where table_schema = current_schema()
-      and table_name = 'user_profiles'
-      and column_name = 'restrictions'
-  ) then
-    insert into medical_info (user_id, doctor_approval, restrictions, updated_at)
-    select up.user_id,
-           coalesce(up.doctor_approval, false),
-           coalesce(up.restrictions, '{}'::text[]),
+  if to_regclass(current_schema() || '.medical_info') is not null then
+    insert into user_profiles (user_id, doctor_approval, restrictions, updated_at)
+    select mi.user_id,
+           coalesce(mi.doctor_approval, false),
+           coalesce(mi.restrictions, '{}'::text[]),
            now()
-    from user_profiles up
+    from medical_info mi
     on conflict (user_id)
     do update set doctor_approval = excluded.doctor_approval,
                   restrictions = excluded.restrictions,
@@ -365,6 +336,27 @@ begin
   end if;
 end
 $$;
+
+drop table if exists medical_info;
+drop table if exists questionnaire_responses;
+drop table if exists user_programs;
+drop table if exists plan_sick_leaves;
+drop table if exists incentive_awards;
+
+drop table if exists nutrition_day_progress cascade;
+drop table if exists nutrition_events cascade;
+drop table if exists nutrition_hydration_logs cascade;
+drop table if exists nutrition_plan_meals cascade;
+drop table if exists nutrition_questionnaire_responses cascade;
+drop table if exists nutrition_reward_redemptions cascade;
+drop table if exists nutrition_user_stats cascade;
+
+delete from schema_migrations
+where filename in (
+  '002_nutrition_plan_meals.sql',
+  '003_nutrition_progress.sql',
+  '004_nutrition_questionnaire_hydration.sql'
+);
 
 -- +migrate Down
 -- (intentionally left blank)

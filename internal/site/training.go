@@ -205,7 +205,7 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
   restrictions := normalizeRestrictionSelection(r.Form["restrictions"])
   restrictionsCSV := strings.Join(restrictions, ",")
   if _, err := s.DB.Exec(
-    `insert into medical_info (user_id, restrictions, updated_at)
+    `insert into user_profiles (user_id, restrictions, updated_at)
      values (
        $1,
        case when trim($2) = '' then '{}'::text[] else string_to_array($2, ',') end,
@@ -268,7 +268,7 @@ func (s *Site) planPage(w http.ResponseWriter, r *http.Request) {
   q, _ := s.loadQuestionnaire(user.ID)
   restrictions := s.loadRestrictions(user.ID)
   var doctorApproval bool
-  _ = s.DB.QueryRow(`select doctor_approval from medical_info where user_id = $1`, user.ID).Scan(&doctorApproval)
+  _ = s.DB.QueryRow(`select doctor_approval from user_profiles where user_id = $1`, user.ID).Scan(&doctorApproval)
 
   var lastChange planChangeView
   var changedAt time.Time
@@ -725,7 +725,7 @@ func validateQuestionnaire(q questionnaireData) map[string]string {
 
 func (s *Site) loadQuestionnaire(userID string) (questionnaireData, error) {
   var raw []byte
-  err := s.DB.QueryRow(`select answers from questionnaire_responses where user_id = $1`, userID).Scan(&raw)
+  err := s.DB.QueryRow(`select answers from user_profiles where user_id = $1`, userID).Scan(&raw)
   if err != nil {
     if err == sql.ErrNoRows {
       return questionnaireData{}, nil
@@ -746,8 +746,8 @@ func (s *Site) saveQuestionnaire(userID string, q questionnaireData) error {
     return err
   }
   _, err = s.DB.Exec(
-    `insert into questionnaire_responses (user_id, answers)
-     values ($1, $2)
+    `insert into user_profiles (user_id, answers, updated_at)
+     values ($1, $2, now())
      on conflict (user_id)
      do update set answers = excluded.answers, updated_at = now()`,
     userID,
@@ -1844,7 +1844,7 @@ func (s *Site) loadRestrictions(userID string) []string {
   var raw string
   _ = s.DB.QueryRow(
     `select coalesce(array_to_string(restrictions, ','), '')
-     from medical_info
+     from user_profiles
      where user_id = $1`,
     userID,
   ).Scan(&raw)
@@ -1853,7 +1853,7 @@ func (s *Site) loadRestrictions(userID string) []string {
 
 func (s *Site) loadDoctorApproval(userID string) bool {
   var approval bool
-  _ = s.DB.QueryRow(`select doctor_approval from medical_info where user_id = $1`, userID).Scan(&approval)
+  _ = s.DB.QueryRow(`select doctor_approval from user_profiles where user_id = $1`, userID).Scan(&approval)
   return approval
 }
 
@@ -2127,13 +2127,6 @@ func (s *Site) updateAchievements(userID string) {
     )
 
     if unlocked && !existing[a.ID] && a.PointsReward > 0 {
-      _, _ = s.DB.Exec(
-        `insert into incentive_awards (user_id, points, reason)
-         values ($1, $2, $3)`,
-        userID,
-        a.PointsReward,
-        "Достижение: "+a.Title,
-      )
       _, _ = s.DB.Exec(
         `insert into user_points (user_id, points_balance, points_total)
          values ($1, $2, $2)

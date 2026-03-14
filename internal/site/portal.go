@@ -436,8 +436,6 @@ func (s *Site) managerAward(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/manager/employees/"+employeeID, http.StatusSeeOther)
     return
   }
-  reason := strings.TrimSpace(r.FormValue("reason"))
-
   if user.Role == "manager" && user.Department != "" {
     var dept string
     _ = s.DB.QueryRow(`select coalesce(department, '') from users where id = $1`, employeeID).Scan(&dept)
@@ -447,14 +445,6 @@ func (s *Site) managerAward(w http.ResponseWriter, r *http.Request) {
     }
   }
 
-  _, _ = s.DB.Exec(
-    `insert into incentive_awards (user_id, points, reason, awarded_by)
-     values ($1, $2, $3, $4)`,
-    employeeID,
-    points,
-    reason,
-    user.ID,
-  )
   _, _ = s.DB.Exec(
     `insert into user_points (user_id, points_balance, points_total)
      values ($1, $2, $2)
@@ -645,16 +635,15 @@ func (s *Site) adminDashboard(w http.ResponseWriter, r *http.Request) {
   data["IntensityStats"] = intensityStats
   data["DepartmentStats"] = s.loadDepartmentStats(trendStart, trendEnd)
 
-  rows, err = s.DB.Query(
-    `select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
-            coalesce(to_char(up.birth_date, 'YYYY-MM-DD'), ''),
-            coalesce(extract(year from age(current_date, up.birth_date))::int, up.age, 0),
-            coalesce(mi.doctor_approval, false)
-     from users u
-     left join user_profiles up on up.user_id = u.id
-     left join medical_info mi on mi.user_id = u.id
-     order by u.created_at desc`,
-  )
+	rows, err = s.DB.Query(
+		`select u.id, u.name, u.employee_id, u.role, coalesce(u.department, ''), coalesce(u.position, ''),
+	            coalesce(to_char(up.birth_date, 'YYYY-MM-DD'), ''),
+	            coalesce(extract(year from age(current_date, up.birth_date))::int, up.age, 0),
+	            coalesce(up.doctor_approval, false)
+	     from users u
+	     left join user_profiles up on up.user_id = u.id
+	     order by u.created_at desc`,
+	)
   users := []managerEmployeeView{}
   if err == nil {
     defer rows.Close()
@@ -799,13 +788,13 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/admin?error=Не%20удалось%20обновить%20пользователя", http.StatusSeeOther)
     return
   }
-  _, _ = s.DB.Exec(
-    `insert into medical_info (user_id, doctor_approval, updated_at)
-     values ($2, $1, now())
-     on conflict (user_id)
-     do update set doctor_approval = excluded.doctor_approval, updated_at = now()`,
-    doctorApproval,
-    userID,
+	_, _ = s.DB.Exec(
+		`insert into user_profiles (user_id, doctor_approval, updated_at)
+	     values ($2, $1, now())
+	     on conflict (user_id)
+	     do update set doctor_approval = excluded.doctor_approval, updated_at = now()`,
+		doctorApproval,
+		userID,
   )
 
   if birthDateRaw != "" {
@@ -875,20 +864,15 @@ func (s *Site) adminUserDelete(w http.ResponseWriter, r *http.Request) {
     `delete from support_ticket_messages where sender_id = $1 or ticket_id in (select id from support_tickets where user_id = $1)`,
     `delete from support_tickets where user_id = $1`,
     `delete from reward_redemptions where user_id = $1 or approved_by = $1`,
-    `delete from incentive_awards where user_id = $1 or awarded_by = $1`,
     `delete from password_reset_requests where user_id = $1 or handled_by = $1`,
-    `delete from plan_sick_leaves where user_id = $1 or created_by = $1 or plan_id in (select id from training_plans where user_id = $1)`,
     `delete from training_plan_workouts where plan_id in (select id from training_plans where user_id = $1)`,
     `delete from training_plan_changes where user_id = $1 or plan_id in (select id from training_plans where user_id = $1)`,
-    `delete from training_plans where user_id = $1`,
-    `delete from user_programs where user_id = $1`,
-    `delete from user_achievements where user_id = $1`,
-    `delete from user_points where user_id = $1`,
-    `delete from medical_info where user_id = $1`,
-    `delete from questionnaire_responses where user_id = $1`,
-    `delete from user_profiles where user_id = $1`,
-    `delete from sessions where user_id = $1`,
-  }
+		`delete from training_plans where user_id = $1`,
+		`delete from user_achievements where user_id = $1`,
+		`delete from user_points where user_id = $1`,
+		`delete from user_profiles where user_id = $1`,
+		`delete from sessions where user_id = $1`,
+	}
   for _, query := range cleanupQueries {
     if _, err := tx.Exec(query, userID); err != nil {
       http.Redirect(w, r, "/admin?error=Не%20удалось%20полностью%20удалить%20данные%20пользователя", http.StatusSeeOther)

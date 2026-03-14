@@ -1430,16 +1430,6 @@ func (s *Site) programStart(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  _, _ = s.DB.Exec(
-    `insert into user_programs (user_id, program_id, start_date, active)
-     select $1, $2, current_date, true
-     where not exists (
-       select 1 from user_programs where user_id = $1 and program_id = $2 and active = true
-     )`,
-    user.ID,
-    programID,
-  )
-
   sessionID, err := s.createWorkoutSession(user.ID, workoutID, "")
   if err != nil {
     http.Redirect(w, r, "/program", http.StatusSeeOther)

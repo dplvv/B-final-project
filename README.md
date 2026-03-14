@@ -27,3 +27,10 @@
 - `/login`, `/register`
 - `/` (дашборд), `/program`, `/exercises`, `/profile`
 - `/workouts/{id}`, `/sessions/{id}`
+
+## ER-диаграмма (чистая БД)
+Для построения ER-диаграммы без служебных таблиц используйте отдельную БД `rehab_er`:
+
+`./scripts/refresh_er_db.sh rehab_app rehab_er`
+
+Скрипт пересоздаёт `rehab_er` из `rehab_app` только с бизнес-таблицами и связями.

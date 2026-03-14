@@ -96,7 +96,6 @@ func ensureUser(db *sql.DB, user seedUser) (string, error) {
 
 func EnsureUserDefaults(db *sql.DB, userID string) error {
 	_, _ = db.Exec("insert into user_profiles (user_id) values ($1) on conflict do nothing", userID)
-	_, _ = db.Exec("insert into medical_info (user_id) values ($1) on conflict do nothing", userID)
 	_, _ = db.Exec("insert into user_points (user_id) values ($1) on conflict do nothing", userID)
 	return nil
 }
@@ -594,9 +593,10 @@ func seedSampleSessions(db *sql.DB, userID string) error {
 		userID,
 	)
 	_, _ = db.Exec(
-		`update medical_info
-     set restrictions = '{Спина}'
-     where user_id = $1`,
+		`update user_profiles
+	     set restrictions = '{Спина}',
+	         updated_at = now()
+	     where user_id = $1`,
 		userID,
 	)
 	return nil

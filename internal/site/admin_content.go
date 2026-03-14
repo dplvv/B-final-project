@@ -14,9 +14,7 @@ import (
   "strings"
   "time"
 
-  "github.com/go-chi/chi/v5"
-
-  "rehab-app/internal/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
 func (s *Site) adminExercises(w http.ResponseWriter, r *http.Request) {
@@ -1269,7 +1267,6 @@ func (s *Site) adminPlanPause(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Site) adminPlanPauseSick(w http.ResponseWriter, r *http.Request) {
-  admin := middleware.UserFromContext(r.Context())
   userID := chi.URLParam(r, "id")
   if userID == "" {
     adminPlanRedirect(w, r, "", "", "")
@@ -1343,22 +1340,6 @@ func (s *Site) adminPlanPauseSick(w http.ResponseWriter, r *http.Request) {
      where id = $2`,
     pauseReason,
     plan.ID,
-  )
-
-  var createdBy any
-  if admin != nil && strings.TrimSpace(admin.ID) != "" {
-    createdBy = admin.ID
-  }
-  _, _ = s.DB.Exec(
-    `insert into plan_sick_leaves (plan_id, user_id, start_date, end_date, days_count, comment, created_by)
-     values ($1, $2, $3, $4, $5, $6, $7)`,
-    plan.ID,
-    userID,
-    fromDate,
-    toDate,
-    daysCount,
-    nullIfEmpty(comment),
-    createdBy,
   )
 
   shifted := int(affectedRows(result))
