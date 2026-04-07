@@ -1,0 +1,90 @@
+{{ define "content" }}
+<div class="guide-shell">
+  <div class="guide-hero">
+    <div>
+      <div class="page-title">Инструкция пользователя</div>
+      <div class="page-subtitle">Коротко и по шагам: как вести программу без лишних действий.</div>
+    </div>
+    <a class="button secondary" href="/profile">Вернуться в профиль</a>
+  </div>
+
+  <div class="guide-banner">
+    Система работает в рабочем контуре компании: изменения анкеты и целей сразу влияют на персональный план.
+  </div>
+
+  <div class="guide-quick">
+    <div class="guide-quick-title">С чего начать сегодня</div>
+    <div class="guide-quick-list">
+      <span class="guide-pill">Проверьте тренировку на сегодня</span>
+      <span class="guide-pill">Обновите текущие цели при необходимости</span>
+      <span class="guide-pill">Настройте напоминания под ваш график</span>
+    </div>
+  </div>
+
+  <div class="guide-grid">
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">1</span><h3>Профиль и настройки</h3></div>
+      <p class="guide-card-summary">Здесь вы управляете личными параметрами сопровождения.</p>
+      <ul class="guide-checklist">
+        <li>Проверьте личные данные и корпоративную почту.</li>
+        <li>Заполните «Текущие цели» по актуальному этапу восстановления.</li>
+        <li>Возраст отображается автоматически по дате рождения.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">2</span><h3>Опросник</h3></div>
+      <p class="guide-card-summary">Анкета определяет безопасную нагрузку и параметры плана.</p>
+      <ul class="guide-checklist">
+        <li>Укажите цель, уровень, частоту и доступный инвентарь.</li>
+        <li>Отметьте ограничения, чтобы исключить неподходящие упражнения.</li>
+        <li>При изменении самочувствия откройте анкету на редактирование.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">3</span><h3>План на день</h3></div>
+      <p class="guide-card-summary">Основной рабочий блок: статус, время и быстрый переход к тренировке.</p>
+      <ul class="guide-checklist">
+        <li>Открывайте «Прогресс плана на сегодня» в профиле.</li>
+        <li>Используйте «Продолжить», если тренировка уже начата.</li>
+        <li>После занятия отправьте обратную связь о переносимости.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">4</span><h3>Баллы и поощрения</h3></div>
+      <p class="guide-card-summary">Баллы начисляются автоматически и используются для обмена на бонусы.</p>
+      <ul class="guide-checklist">
+        <li>Вначале отображаются доступные поощрения по вашему балансу.</li>
+        <li>При обмене баллы списываются сразу с текущего баланса.</li>
+        <li>Статус заявки обновляется после обработки.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">5</span><h3>Достижения и рейтинг</h3></div>
+      <p class="guide-card-summary">Отслеживайте прогресс и позицию среди сотрудников.</p>
+      <ul class="guide-checklist">
+        <li>Смотрите динамику по сериям, неделе, месяцу и минутам.</li>
+        <li>Полученные достижения выводятся в конце списка на странице достижений.</li>
+        <li>В профиле отображаются уже выполненные достижения и место в рейтинге.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">6</span><h3>Поддержка</h3></div>
+      <p class="guide-card-summary">Если нужна помощь, используйте встроенный контур обращений.</p>
+      <ul class="guide-checklist">
+        <li>Создавайте обращение в разделе «Поддержка».</li>
+        <li>Для изменений административных данных обращайтесь к администратору.</li>
+        <li>По медицинским вопросам обращайтесь к профильному специалисту.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+{{ end }}
+
+{{ define "instructions_user" }}
+  {{ template "base" . }}
+{{ end }}

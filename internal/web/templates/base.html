@@ -68,7 +68,7 @@
                   {{ else }}
                     <div class="empty-state">
                       <div class="empty-title">Пока нет уведомлений</div>
-                      <div class="muted">Напоминания о тренировках, изменения плана и решения по поощрениям появятся здесь.</div>
+                      <div class="muted">Напоминания, ответы поддержки, начисления баллов и решения по поощрениям появятся здесь.</div>
                     </div>
                   {{ end }}
                 </div>
@@ -76,7 +76,9 @@
             </div>
           </div>
         </div>
-        {{ template "content" . }}
+        <div class="content-stack">
+          {{ template "content" . }}
+        </div>
       </main>
     </div>
 

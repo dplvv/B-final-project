@@ -1,0 +1,90 @@
+{{ define "content" }}
+<div class="guide-shell">
+  <div class="guide-hero">
+    <div>
+      <div class="page-title">Инструкция руководителя</div>
+      <div class="page-subtitle">Короткий регламент управления прогрессом сотрудников и заявками на поощрения.</div>
+    </div>
+    <a class="button secondary" href="/manager">Вернуться в панель руководителя</a>
+  </div>
+
+  <div class="guide-banner">
+    Ваша роль: поддерживать регулярность тренировок в отделе и быстро принимать решения по мотивации сотрудников.
+  </div>
+
+  <div class="guide-quick">
+    <div class="guide-quick-title">Что проверить в первую очередь</div>
+    <div class="guide-quick-list">
+      <span class="guide-pill">Динамика отдела за текущую неделю</span>
+      <span class="guide-pill">Сотрудники с низкой активностью</span>
+      <span class="guide-pill">Новые заявки на поощрения</span>
+    </div>
+  </div>
+
+  <div class="guide-grid">
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">1</span><h3>Мониторинг отдела</h3></div>
+      <p class="guide-card-summary">Используйте панель как инструмент регулярного контроля, а не разового отчета.</p>
+      <ul class="guide-checklist">
+        <li>Сверяйте тренировки и переносимость по периодам.</li>
+        <li>Используйте фильтр дат для сравнения динамики.</li>
+        <li>Фиксируйте устойчивое снижение активности как риск.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">2</span><h3>Карточка сотрудника</h3></div>
+      <p class="guide-card-summary">Карточка показывает полный контекст: баллы, достижения, историю тренировок.</p>
+      <ul class="guide-checklist">
+        <li>Оценивайте прогресс перед выдачей дополнительных баллов.</li>
+        <li>Добавляйте понятную причину начисления.</li>
+        <li>Отслеживайте устойчивость результата, а не единичный всплеск.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">3</span><h3>Заявки на поощрения</h3></div>
+      <p class="guide-card-summary">Оперативность решений напрямую влияет на мотивацию сотрудников.</p>
+      <ul class="guide-checklist">
+        <li>Одобряйте заявки без лишних задержек.</li>
+        <li>При отклонении используйте прозрачную аргументацию.</li>
+        <li>Контролируйте, чтобы статусы заявок были актуальны.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">4</span><h3>Взаимодействие с администратором</h3></div>
+      <p class="guide-card-summary">Сложные случаи должны быстро попадать в административный контур.</p>
+      <ul class="guide-checklist">
+        <li>Передавайте случаи с ухудшением переносимости.</li>
+        <li>Инициируйте корректировку планов при изменении условий работы.</li>
+        <li>Фиксируйте договоренности по приоритетным сотрудникам.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">5</span><h3>Коммуникация с командой</h3></div>
+      <p class="guide-card-summary">Поддержка должна быть регулярной, понятной и без формального давления.</p>
+      <ul class="guide-checklist">
+        <li>Давайте сотрудникам обратную связь по динамике прогресса.</li>
+        <li>Рекомендуйте использовать персональные напоминания.</li>
+        <li>По медицинским ограничениям направляйте к специалисту.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">6</span><h3>Недельный контроль</h3></div>
+      <p class="guide-card-summary">Закрепите единый короткий цикл управленческих проверок.</p>
+      <ul class="guide-checklist">
+        <li>Проверьте ключевые показатели отдела за неделю.</li>
+        <li>Закройте накопленные заявки и эскалации.</li>
+        <li>Сформируйте список вопросов на синхронизацию с администратором.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+{{ end }}
+
+{{ define "instructions_manager" }}
+  {{ template "base" . }}
+{{ end }}

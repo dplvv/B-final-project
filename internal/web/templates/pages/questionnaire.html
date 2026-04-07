@@ -2,19 +2,27 @@
 <div class="page-header">
   <div>
     <div class="page-title">Опросник</div>
-    <div class="page-subtitle">Заполните данные для безопасного подбора программы.</div>
+    <div class="page-subtitle">Заполните данные для безопасного и персонального подбора программы.</div>
   </div>
 </div>
 
 <div class="notice" style="margin-bottom: 18px;">
-  Данные анкеты используются для первичного подбора и соблюдения ограничений безопасности. При боли или ухудшении самочувствия обратитесь к специалисту.
+  Данные анкеты используются для подбора нагрузки. При боли или ухудшении самочувствия обратитесь к специалисту.
 </div>
 
 {{ if and .QuestionnaireComplete (not .EditMode) }}
   <div class="card" style="margin-bottom: 18px;">
     <div class="card-header">
       <div class="card-title">Анкета заполнена</div>
-      <a class="button secondary" href="/questionnaire?edit=1">Редактировать</a>
+      <span class="badge success">100% готово</span>
+    </div>
+    <div class="quiz-progress" style="margin-bottom: 14px;">
+      <div class="progress"><span style="width: 100%;"></span></div>
+      <div class="quiz-stepper">
+        <span class="quiz-step-indicator completed">1. Цели</span>
+        <span class="quiz-step-indicator completed">2. Формат</span>
+        <span class="quiz-step-indicator completed">3. Ограничения</span>
+      </div>
     </div>
     <div class="info-list">
       <div><strong>Цель:</strong> {{ .Questionnaire.Goal }}</div>
@@ -26,19 +34,31 @@
       <div><strong>Ограничения:</strong> {{ if .SelectedRestrictions }}{{ join .SelectedRestrictions ", " }}{{ else }}не указаны{{ end }}</div>
       <div><strong>Допуск врача:</strong> {{ if .DoctorApproval }}есть{{ else }}нет{{ end }}</div>
     </div>
+    <div class="card-actions" style="margin-top: 14px;">
+      <a class="button secondary" href="/questionnaire?edit=1">Редактировать анкету</a>
+      <a class="button primary" href="/profile">Вернуться в профиль</a>
+    </div>
   </div>
-  <a class="button primary" href="/profile">Вернуться в профиль</a>
 {{ else }}
+  {{ if .EditMode }}
+    <div class="notice" style="margin-bottom: 16px;">Вы редактируете заполненную анкету. Изменения сразу повлияют на персональный план.</div>
+  {{ end }}
+
   <form method="post" action="/questionnaire" class="form" id="questionnaire-form">
     {{ if .ReturnTo }}
       <input type="hidden" name="return_to" value="{{ .ReturnTo }}" />
     {{ end }}
+
     <div class="quiz-progress">
+      <div class="quiz-progress-head">
+        <div class="quiz-progress-title" id="quiz-step-label">Шаг 1 из 3</div>
+        <div class="quiz-progress-percent" id="quiz-progress-percent">33%</div>
+      </div>
       <div class="progress"><span id="quiz-progress-bar" style="width: 33%;"></span></div>
       <div class="quiz-stepper">
-        <span class="quiz-step-indicator active" data-step="0">1. Цели</span>
-        <span class="quiz-step-indicator" data-step="1">2. Формат</span>
-        <span class="quiz-step-indicator" data-step="2">3. Ограничения</span>
+        <span class="quiz-step-indicator current" data-step="0">1. Цели</span>
+        <span class="quiz-step-indicator upcoming" data-step="1">2. Формат</span>
+        <span class="quiz-step-indicator upcoming" data-step="2">3. Ограничения</span>
       </div>
     </div>
 
@@ -121,7 +141,7 @@
     <div class="quiz-actions">
       <button class="button secondary" type="button" id="quiz-prev">Назад</button>
       <button class="button primary" type="button" id="quiz-next">Далее</button>
-      <button class="button primary" type="submit" id="quiz-submit" style="display:none;">Сохранить анкету</button>
+      <button class="button primary" type="submit" id="quiz-submit" style="display:none;">{{ if .EditMode }}Сохранить изменения{{ else }}Сохранить анкету{{ end }}</button>
     </div>
   </form>
 
@@ -130,6 +150,8 @@
       var steps = Array.from(document.querySelectorAll('.quiz-step'));
       var indicators = Array.from(document.querySelectorAll('.quiz-step-indicator'));
       var progress = document.getElementById('quiz-progress-bar');
+      var progressPercent = document.getElementById('quiz-progress-percent');
+      var stepLabel = document.getElementById('quiz-step-label');
       var prevBtn = document.getElementById('quiz-prev');
       var nextBtn = document.getElementById('quiz-next');
       var submitBtn = document.getElementById('quiz-submit');
@@ -143,11 +165,23 @@
         steps.forEach(function(step, idx) {
           step.hidden = idx !== current;
         });
+
         indicators.forEach(function(indicator, idx) {
-          indicator.classList.toggle('active', idx === current);
+          indicator.classList.remove('completed', 'current', 'upcoming');
+          if (idx < current) {
+            indicator.classList.add('completed');
+          } else if (idx === current) {
+            indicator.classList.add('current');
+          } else {
+            indicator.classList.add('upcoming');
+          }
         });
+
         var percent = Math.round(((current + 1) / steps.length) * 100);
         progress.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+        stepLabel.textContent = 'Шаг ' + (current + 1) + ' из ' + steps.length;
+
         prevBtn.disabled = current === 0;
         if (current === steps.length - 1) {
           nextBtn.style.display = 'none';
@@ -192,7 +226,7 @@
           });
           return;
         }
-        if (changedInput !== noEquipmentInput && changedInput && changedInput.checked) {
+        if (changedInput !== noEquipmentInput && changedInput.checked) {
           noEquipmentInput.checked = false;
         }
       }
@@ -203,7 +237,6 @@
         });
       });
       syncEquipmentSelection(null);
-
       render();
     })();
   </script>

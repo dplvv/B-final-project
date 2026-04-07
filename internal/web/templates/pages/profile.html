@@ -2,24 +2,34 @@
 <div class="page-header">
   <div>
     <div class="page-title">Профиль</div>
-    <div class="page-subtitle">Данные пользователя и настройки программы.</div>
+    <div class="page-subtitle">Личные данные, текущие цели и персональные настройки программы.</div>
+  </div>
+  <div class="header-actions">
+    <a class="button secondary" href="{{ .UserInstructionsURL }}">Инструкция пользователя</a>
   </div>
 </div>
 
 {{ if .Success }}
   <div class="notice" style="margin-bottom: 16px;">{{ .Success }}</div>
 {{ end }}
+{{ if .Error }}
+  <div class="notice error" style="margin-bottom: 16px;">{{ .Error }}</div>
+{{ end }}
 
-<div class="grid cols-3">
-  <div class="card profile-overview">
+<div class="grid cols-3 card-grid-equal">
+  <div class="card profile-overview card-stretch">
     <div class="profile-name">{{ .Profile.User.Name }}</div>
     <div class="muted">{{ .Profile.User.Department }} · {{ .Profile.User.Position }}</div>
     <div class="profile-meta">
-      <span class="badge">ID {{ .Profile.User.EmployeeID }}</span>
+      <span class="badge">Табельный № {{ .Profile.User.EmployeeID }}</span>
       <span class="badge">Баллы {{ .Profile.Points }}</span>
     </div>
+    <div class="info-list" style="margin-top: 8px;">
+      <div><strong>Корпоративная почта:</strong> {{ if .Profile.User.CorporateEmail }}{{ .Profile.User.CorporateEmail }}{{ else }}—{{ end }}</div>
+    </div>
   </div>
-  <div class="card">
+
+  <div class="card card-stretch">
     <div class="card-header">
       <div class="card-title">Показатели</div>
     </div>
@@ -28,7 +38,8 @@
       <div><strong>Уровень:</strong> {{ if .Profile.FitnessLevel }}{{ .Profile.FitnessLevel }}{{ else }}—{{ end }}</div>
     </div>
   </div>
-  <div class="card">
+
+  <div class="card card-stretch">
     <div class="card-header">
       <div class="card-title">Безопасность</div>
     </div>
@@ -39,13 +50,126 @@
   </div>
 </div>
 
+<div class="grid cols-2 card-grid-equal" style="margin-top: 24px;">
+  <div class="card card-stretch">
+    <div class="card-header">
+      <div class="card-title">Прогресс плана на сегодня</div>
+      {{ if .TodayPlanProgress.HasWorkout }}
+        <span class="badge">{{ .TodayPlanProgress.StatusLabel }}</span>
+      {{ end }}
+    </div>
+
+    {{ if .TodayPlanProgress.HasWorkout }}
+      <div class="info-list">
+        <div><strong>Тренировка:</strong> {{ .TodayPlanProgress.WorkoutName }}</div>
+        <div><strong>Время:</strong>
+          {{ if .TodayPlanProgress.ScheduledTime }}
+            {{ .TodayPlanProgress.ScheduledTime }}
+          {{ else }}
+            По готовности
+          {{ end }}
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <div class="stat-label" style="margin-bottom: 6px;">Прогресс выполнения: {{ .TodayPlanProgress.Progress }}%</div>
+        <div class="progress"><span style="width: {{ .TodayPlanProgress.Progress }}%;"></span></div>
+      </div>
+
+      <div class="card-actions" style="margin-top: 14px;">
+        {{ if and (eq .TodayPlanProgress.Status "in_progress") .TodayPlanProgress.SessionID }}
+          <a class="button primary" href="/sessions/{{ .TodayPlanProgress.SessionID }}">Продолжить</a>
+        {{ else if and (eq .TodayPlanProgress.Status "pending") .TodayPlanProgress.StartAllowed }}
+          <form method="post" action="/plan-workouts/{{ .TodayPlanProgress.PlanWorkoutID }}/start">
+            <button class="button primary" type="submit">Перейти к тренировке</button>
+          </form>
+        {{ else if and (eq .TodayPlanProgress.Status "pending") (not .TodayPlanProgress.StartAllowed) }}
+          <span class="muted">{{ .TodayPlanProgress.AvailableFrom }}</span>
+        {{ else if eq .TodayPlanProgress.Status "completed" }}
+          <span class="badge success">Тренировка завершена</span>
+        {{ else if eq .TodayPlanProgress.Status "skipped" }}
+          <span class="badge warning">Сегодня тренировка пропущена</span>
+        {{ end }}
+      </div>
+    {{ else }}
+      <div class="empty-state">
+        <div class="empty-title">На сегодня тренировок нет</div>
+        <div class="muted">Проверьте календарь плана или обновите анкету при изменении цели.</div>
+      </div>
+    {{ end }}
+  </div>
+
+  <div class="card card-stretch">
+    <div class="card-header">
+      <div class="card-title">Место в рейтинге</div>
+      <a class="button link" href="/leaderboard">Открыть рейтинг</a>
+    </div>
+    {{ if .HasLeaderboardPlace }}
+      <div class="stat-value">{{ .LeaderboardPlace }} место</div>
+      <div class="muted">из {{ .LeaderboardTotal }} сотрудников</div>
+      <div class="notice" style="margin-top: 14px;">Позиция считается по баллам, активности и объёму тренировок.</div>
+    {{ else }}
+      <div class="empty-state">
+        <div class="empty-title">Рейтинг пока недоступен</div>
+        <div class="muted">После первых тренировок место в рейтинге отобразится автоматически.</div>
+      </div>
+    {{ end }}
+  </div>
+</div>
+
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <div class="card-title">Текущие цели</div>
+  </div>
+  <div class="muted" style="margin-bottom: 10px;">Приоритет целей: профиль → активный план → анкета.</div>
+  <form class="form" method="post" action="/profile/goals">
+    <div class="form-group">
+      <label for="goals">Цели (через запятую)</label>
+      <input id="goals" name="goals" value="{{ .GoalsText }}" placeholder="Например: Восстановление, Подвижность" required />
+    </div>
+    <button class="button primary" type="submit">Сохранить текущие цели</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <div class="card-title">Напоминания о тренировках</div>
+  </div>
+  <form class="form" method="post" action="/profile/reminders">
+    <label class="toggle">
+      <input type="checkbox" name="enabled" {{ if .ReminderSettings.Enabled }}checked{{ end }} />
+      <span>Включить напоминания о плане тренировок</span>
+    </label>
+
+    <div class="grid cols-2">
+      <div class="form-group">
+        <label for="reminder_time">Удобное время напоминания</label>
+        <input id="reminder_time" type="time" name="reminder_time" value="{{ .ReminderSettings.ReminderTime }}" required />
+      </div>
+      <div class="form-group">
+        <label>Дни недели</label>
+        <div class="choice-grid">
+          {{ range .ReminderWeekdays }}
+            <label class="choice-chip">
+              <input type="checkbox" name="weekdays" value="{{ .Value }}" {{ if contains $.ReminderSettings.Weekdays .Value }}checked{{ end }} />
+              <span>{{ .Label }}</span>
+            </label>
+          {{ end }}
+        </div>
+      </div>
+    </div>
+
+    <div class="muted">Если выбранное время позже старта тренировки, напоминание придёт за 30 минут до начала.</div>
+    <button class="button primary" type="submit">Сохранить напоминания</button>
+  </form>
+</div>
+
 <div class="card" style="margin-top: 24px;">
   <div class="card-header">
     <div class="card-title">Параметры программы</div>
     {{ if .QuestionnaireComplete }}
-      <a class="button secondary" href="/questionnaire?edit=1&from=/profile">Редактировать</a>
+      <a class="button secondary" href="/questionnaire?edit=1&from=/profile">Редактировать анкету</a>
     {{ else }}
-      <a class="button primary" href="/questionnaire?edit=1&from=/profile">Заполнить</a>
+      <a class="button primary" href="/questionnaire?edit=1&from=/profile">Заполнить анкету</a>
     {{ end }}
   </div>
   {{ if .QuestionnaireComplete }}
@@ -64,52 +188,39 @@
   {{ end }}
 </div>
 
-{{ if .CanEditProfile }}
-  <div class="card" style="margin-top: 24px;">
-    <div class="card-header">
-      <div class="card-title">Редактировать профиль</div>
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <div class="card-title">Выполненные достижения</div>
+    <a class="button link" href="/achievements">Все достижения</a>
+  </div>
+  {{ if .UnlockedAchievements }}
+    <div class="grid cols-3 card-grid-equal">
+      {{ range .UnlockedAchievements }}
+        <div class="card softer achievement-card card-stretch">
+          <div class="achievement-icon">{{ .Icon }}</div>
+          <div>
+            <div class="achievement-title">{{ .Title }}</div>
+            <div class="muted" style="margin-top: 6px;">{{ .Description }}</div>
+          </div>
+          <div class="card-actions">
+            {{ if .UnlockedAt }}<span class="badge success">Получено {{ .UnlockedAt }}</span>{{ end }}
+            {{ if gt .PointsReward 0 }}<span class="badge">+{{ .PointsReward }} баллов</span>{{ end }}
+          </div>
+        </div>
+      {{ end }}
     </div>
-    <form class="form" method="post" action="/profile">
-      <div class="grid cols-2">
-        <div class="form-group">
-          <label for="name">ФИО</label>
-          <input id="name" name="name" value="{{ .Profile.User.Name }}" />
-        </div>
-        <div class="form-group">
-          <label for="department">Отдел</label>
-          <input id="department" name="department" value="{{ .Profile.User.Department }}" />
-        </div>
-        <div class="form-group">
-          <label for="position">Должность</label>
-          <input id="position" name="position" value="{{ .Profile.User.Position }}" />
-        </div>
-        <div class="form-group">
-          <label for="age">Возраст</label>
-          <input id="age" name="age" type="number" min="16" max="100" value="{{ .Profile.Age }}" />
-        </div>
-        <div class="form-group">
-          <label for="fitness_level">Уровень подготовки</label>
-          <select id="fitness_level" name="fitness_level">
-            <option value="">Не указан</option>
-            <option value="Легкая" {{ if eq .Profile.FitnessLevel "Легкая" }}selected{{ end }}>Легкая</option>
-            <option value="Средняя" {{ if eq .Profile.FitnessLevel "Средняя" }}selected{{ end }}>Средняя</option>
-            <option value="Продвинутая" {{ if eq .Profile.FitnessLevel "Продвинутая" }}selected{{ end }}>Продвинутая</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="goals">Цели (через запятую)</label>
-          <input id="goals" name="goals" value="{{ join .Profile.Goals ", " }}" />
-        </div>
-      </div>
-      <button class="button primary" type="submit">Сохранить</button>
-    </form>
-  </div>
-{{ else }}
-  <div class="card" style="margin-top: 20px;">
-    <div class="card-title">Редактирование профиля</div>
-    <p class="muted" style="margin-top: 8px;">Данные профиля изменяет администратор. Вы можете редактировать только анкету.</p>
-  </div>
-{{ end }}
+  {{ else }}
+    <div class="empty-state">
+      <div class="empty-title">Пока нет выполненных достижений</div>
+      <div class="muted">Начните тренировки: после первых результатов достижения появятся в этом блоке.</div>
+    </div>
+  {{ end }}
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <div class="card-title">Редактирование административных полей</div>
+  <p class="muted" style="margin-top: 8px;">ФИО, табельный номер, отдел, должность, корпоративную почту и медицинский допуск изменяет администратор в панели администрирования.</p>
+</div>
 {{ end }}
 
 {{ define "profile" }}

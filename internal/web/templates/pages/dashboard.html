@@ -68,7 +68,10 @@
     <div class="card-header">
       <div class="card-title">Ближайшая тренировка</div>
       {{ if .NextWorkout }}
-        <span class="badge">{{ if .NextWorkout.ScheduledDate }}{{ .NextWorkout.ScheduledDate }}{{ else }}По плану{{ end }}</span>
+        <span class="badge">
+          {{ if .NextWorkout.ScheduledDate }}{{ .NextWorkout.ScheduledDate }}{{ else }}По плану{{ end }}
+          {{ if .NextWorkout.ScheduledTime }} · {{ .NextWorkout.ScheduledTime }}{{ end }}
+        </span>
       {{ end }}
     </div>
     {{ if .NextWorkout }}
@@ -85,7 +88,9 @@
       {{ else if .PlanLaunchBlocked }}
         <div class="notice error" style="margin-top: 16px;">План приостановлен. Запуск недоступен.</div>
       {{ else if not .NextWorkout.StartAllowed }}
-        <div class="notice warning" style="margin-top: 16px;">Тренировка доступна только в назначенную дату.</div>
+        <div class="notice warning" style="margin-top: 16px;">
+          {{ if .NextWorkout.AvailableFrom }}{{ .NextWorkout.AvailableFrom }}{{ else }}Тренировка доступна только в назначенную дату.{{ end }}
+        </div>
       {{ else }}
         {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
           <a class="button primary" href="/sessions/{{ .NextWorkout.SessionID }}" style="margin-top: 18px; display: inline-flex;">Продолжить</a>
@@ -152,7 +157,7 @@
   <div class="trend-chart {{ if eq .TrendMode "employees" }}employees{{ end }}">
     {{ range .Trend }}
       <div class="trend-row">
-        <div class="trend-label" {{ if eq $.TrendMode "employees" }}title="{{ .Label }}"{{ end }}>{{ .Label }}</div>
+        <div class="trend-label">{{ .Label }}</div>
         <div class="trend-bar">
           <span style="width: {{ .WorkoutsPercent }}%;"></span>
         </div>

@@ -4,6 +4,7 @@
     <div class="page-title">Администрирование</div>
     <div class="page-subtitle">Управление пользователями, контентом и безопасностью системы.</div>
   </div>
+  <a class="button secondary" href="/instructions/admin">Инструкция администратора</a>
 </div>
 
 {{ if .Success }}
@@ -108,7 +109,7 @@
   <div class="trend-chart employees">
     {{ range .AdminEmployeeTrend }}
       <div class="trend-row">
-        <div class="trend-label" title="{{ .Label }}">{{ .Label }}</div>
+        <div class="trend-label">{{ .Label }}</div>
         <div class="trend-bar">
           <span style="width: {{ .WorkoutsPercent }}%;"></span>
         </div>
@@ -220,36 +221,36 @@
   <div class="card-header">
     <div class="card-title">Разделы администрирования</div>
   </div>
-  <div class="grid cols-3">
-    <a class="card softer" href="/admin/exercises" style="text-decoration:none;">
+  <div class="grid cols-3 card-grid-equal">
+    <a class="card softer admin-tile card-stretch" href="/admin/exercises" style="text-decoration:none;">
       <div class="card-title">Упражнения</div>
       <div class="muted">Библиотека и фото</div>
     </a>
-    <a class="card softer" href="/admin/workouts" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/workouts" style="text-decoration:none;">
       <div class="card-title">Тренировки</div>
       <div class="muted">Состав и параметры</div>
     </a>
-    <a class="card softer" href="/admin/programs" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/programs" style="text-decoration:none;">
       <div class="card-title">Программы</div>
       <div class="muted">Сценарии реабилитации</div>
     </a>
-    <a class="card softer" href="/admin/plans" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/plans" style="text-decoration:none;">
       <div class="card-title">Планы</div>
       <div class="muted">Назначения сотрудникам</div>
     </a>
-    <a class="card softer" href="/admin/feedback" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/feedback" style="text-decoration:none;">
       <div class="card-title">Отзывы</div>
       <div class="muted">Обратная связь</div>
     </a>
-    <a class="card softer" href="/admin/support" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/support" style="text-decoration:none;">
       <div class="card-title">Обращения</div>
       <div class="muted">Заявки и вопросы</div>
     </a>
-    <a class="card softer" href="/admin/rewards" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/rewards" style="text-decoration:none;">
       <div class="card-title">Поощрения</div>
       <div class="muted">Настройка наград</div>
     </a>
-    <a class="card softer" href="/admin/achievements" style="text-decoration:none;">
+    <a class="card softer admin-tile card-stretch" href="/admin/achievements" style="text-decoration:none;">
       <div class="card-title">Достижения</div>
       <div class="muted">Правила и баллы</div>
     </a>
@@ -268,8 +269,12 @@
           <input name="name" required />
         </div>
         <div class="form-group">
-          <label>ID‑сотрудника</label>
+          <label>Табельный номер</label>
           <input name="employee_id" required />
+        </div>
+        <div class="form-group">
+          <label>Корпоративная почта</label>
+          <input name="corporate_email" type="email" placeholder="name@corp.example" />
         </div>
         <div class="form-group">
           <label>Роль</label>
@@ -283,10 +288,7 @@
           <label>Отдел</label>
           <input name="department" />
         </div>
-        <div class="form-group">
-          <label>Должность</label>
-          <input name="position" />
-        </div>
+        <div class="form-group"><label>Должность</label><input name="position" /></div>
         <div class="form-group">
           <label>Дата рождения</label>
           <input type="date" name="birth_date" />
@@ -310,7 +312,7 @@
           <div class="card-header">
             <div>
               <div class="card-title">{{ .EmployeeName }}</div>
-              <div class="muted">ID‑сотрудника: {{ .EmployeeID }}</div>
+              <div class="muted">Табельный номер: {{ .EmployeeID }}</div>
             </div>
             <span class="badge">{{ .CreatedAt }}</span>
           </div>
@@ -342,7 +344,8 @@
         <div class="card-header">
           <div>
             <div class="card-title">{{ .Name }}</div>
-            <div class="muted">ID {{ .EmployeeID }} · {{ roleLabel .Role }}{{ if gt .Age 0 }} · {{ .Age }} лет{{ end }}</div>
+            <div class="muted">Табельный № {{ .EmployeeID }} · {{ roleLabel .Role }}{{ if gt .Age 0 }} · {{ .Age }} лет{{ end }}</div>
+            {{ if .CorporateEmail }}<div class="muted">Корпоративная почта: {{ .CorporateEmail }}</div>{{ end }}
           </div>
           <span class="badge">{{ if .DoctorApproval }}Допуск врача{{ else }}Без допуска{{ end }}</span>
         </div>
@@ -355,8 +358,12 @@
                 <input type="text" name="name" value="{{ .Name }}" />
               </div>
               <div class="form-group">
-                <label>ID</label>
+                <label>Табельный номер</label>
                 <input type="text" name="employee_id" value="{{ .EmployeeID }}" />
+              </div>
+              <div class="form-group">
+                <label>Корпоративная почта</label>
+                <input type="email" name="corporate_email" value="{{ .CorporateEmail }}" />
               </div>
               <div class="form-group">
                 <label>Роль</label>

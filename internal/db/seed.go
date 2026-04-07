@@ -10,18 +10,19 @@ import (
 )
 
 type seedUser struct {
-	Name       string
-	EmployeeID string
-	Role       string
-	Department string
-	Password   string
+	Name           string
+	EmployeeID     string
+	CorporateEmail string
+	Role           string
+	Department     string
+	Password       string
 }
 
 func Seed(db *sql.DB) error {
 	users := []seedUser{
-		{Name: "Иван Петров", EmployeeID: "10001", Role: "employee", Department: "Инженерный отдел", Password: "password"},
-		{Name: "Мария Соколова", EmployeeID: "20001", Role: "manager", Department: "HR", Password: "password"},
-		{Name: "Администратор", EmployeeID: "90000", Role: "admin", Department: "ИТ", Password: "password"},
+		{Name: "Иван Петров", EmployeeID: "10001", CorporateEmail: "i.petrov@corp.rosatom.local", Role: "employee", Department: "Инженерный отдел", Password: "password"},
+		{Name: "Мария Соколова", EmployeeID: "20001", CorporateEmail: "m.sokolova@corp.rosatom.local", Role: "manager", Department: "HR", Password: "password"},
+		{Name: "Администратор", EmployeeID: "90000", CorporateEmail: "admin@corp.rosatom.local", Role: "admin", Department: "ИТ", Password: "password"},
 	}
 
 	userIDs := map[string]string{}
@@ -66,6 +67,20 @@ func ensureUser(db *sql.DB, user seedUser) (string, error) {
 	var id string
 	err := db.QueryRow("select id from users where employee_id = $1", user.EmployeeID).Scan(&id)
 	if err == nil {
+		_, _ = db.Exec(
+			`update users
+       set name = $1,
+           role = $2,
+           department = $3,
+           corporate_email = case when trim($4) = '' then corporate_email else $4 end,
+           updated_at = now()
+       where id = $5`,
+			user.Name,
+			user.Role,
+			user.Department,
+			user.CorporateEmail,
+			id,
+		)
 		return id, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -78,11 +93,12 @@ func ensureUser(db *sql.DB, user seedUser) (string, error) {
 	}
 
 	err = db.QueryRow(
-		`insert into users (name, employee_id, password_hash, role, department)
-     values ($1, $2, $3, $4, $5)
+		`insert into users (name, employee_id, corporate_email, password_hash, role, department)
+     values ($1, $2, nullif($3, ''), $4, $5, $6)
      returning id`,
 		user.Name,
 		user.EmployeeID,
+		user.CorporateEmail,
 		string(hash),
 		user.Role,
 		user.Department,
@@ -97,6 +113,12 @@ func ensureUser(db *sql.DB, user seedUser) (string, error) {
 func EnsureUserDefaults(db *sql.DB, userID string) error {
 	_, _ = db.Exec("insert into user_profiles (user_id) values ($1) on conflict do nothing", userID)
 	_, _ = db.Exec("insert into user_points (user_id) values ($1) on conflict do nothing", userID)
+	_, _ = db.Exec(
+		`insert into user_reminder_settings (user_id)
+	     values ($1)
+	     on conflict (user_id) do nothing`,
+		userID,
+	)
 	return nil
 }
 
@@ -484,18 +506,21 @@ func seedAchievements(db *sql.DB) error {
 		Target      int
 	}{
 		{"Первый шаг", "Завершите первую тренировку", "👣", 20, "total", 1},
-		{"Первые три", "Завершите 3 тренировки", "⭐", 30, "total", 3},
-		{"Пять тренировок", "Завершите 5 тренировок", "💪", 40, "total", 5},
-		{"Серия", "5 тренировок подряд", "🔥", 40, "streak", 5},
-		{"Неделя подряд", "7 тренировок подряд", "📈", 60, "streak", 7},
-		{"Железная воля", "10 тренировок подряд", "⚡", 70, "streak", 10},
-		{"Активные 2 недели", "14 тренировок подряд", "🏃", 100, "streak", 14},
-		{"Настойчивость", "10 тренировок за месяц", "🛡️", 60, "month", 10},
-		{"12 тренировок за месяц", "12 тренировок за месяц", "🌟", 80, "month", 12},
-		{"Регулярность", "8 тренировок за месяц", "📅", 50, "month", 8},
-		{"Месяц активности", "20 тренировок за месяц", "🏅", 120, "month", 20},
-		{"15 тренировок", "Завершите 15 тренировок всего", "🎯", 90, "total", 15},
-		{"Марафон", "25 тренировок всего", "🏆", 100, "total", 25},
+		{"Тренировочный старт", "Завершите 3 тренировки", "⭐", 35, "total", 3},
+		{"Уверенный ритм", "Завершите 10 тренировок", "💪", 60, "total", 10},
+		{"Стабильная привычка", "Завершите 25 тренировок", "🏆", 90, "total", 25},
+		{"Мастер дисциплины", "Завершите 50 тренировок", "🏅", 140, "total", 50},
+		{"Серия I", "3 тренировки подряд", "🔥", 30, "streak", 3},
+		{"Серия II", "7 тренировок подряд", "⚡", 70, "streak", 7},
+		{"Серия III", "14 тренировок подряд", "🚀", 120, "streak", 14},
+		{"Активная неделя I", "3 тренировки за 7 дней", "📈", 35, "week", 3},
+		{"Активная неделя II", "5 тренировок за 7 дней", "📊", 65, "week", 5},
+		{"Активный месяц I", "8 тренировок за 30 дней", "📅", 60, "month", 8},
+		{"Активный месяц II", "12 тренировок за 30 дней", "🌟", 90, "month", 12},
+		{"Активный месяц III", "20 тренировок за 30 дней", "🎯", 140, "month", 20},
+		{"Минуты восстановления I", "Накопите 150 минут тренировок", "⏱️", 45, "minutes_total", 150},
+		{"Минуты восстановления II", "Накопите 600 минут тренировок", "🧭", 90, "minutes_total", 600},
+		{"Минуты восстановления III", "Накопите 1200 минут тренировок", "🏁", 150, "minutes_total", 1200},
 	}
 
 	for _, a := range achievements {

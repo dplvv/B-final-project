@@ -4,6 +4,10 @@
     <div class="page-title">Панель руководителя</div>
     <div class="page-subtitle">Контроль достижений и поощрений сотрудников.</div>
   </div>
+  <div class="header-actions column">
+    <span class="badge success">Получено поощрений сотрудниками: {{ .DepartmentRewardsReceived }}</span>
+    <a class="button secondary" href="/instructions/manager">Инструкция руководителя</a>
+  </div>
 </div>
 
 <div class="card" style="margin-bottom: 24px;">
@@ -71,7 +75,7 @@
   <div class="trend-chart employees">
     {{ range .DepartmentEmployeeTrend }}
       <div class="trend-row">
-        <div class="trend-label" title="{{ .Label }}">{{ .Label }}</div>
+        <div class="trend-label">{{ .Label }}</div>
         <div class="trend-bar">
           <span style="width: {{ .WorkoutsPercent }}%;"></span>
         </div>
@@ -101,9 +105,10 @@
       <thead>
         <tr>
           <th>Сотрудник</th>
-          <th>ID</th>
+          <th>Табельный №</th>
           <th>Баллы</th>
           <th>Достижения</th>
+          <th>Поощрения</th>
           <th></th>
         </tr>
       </thead>
@@ -114,11 +119,12 @@
             <td>{{ .EmployeeID }}</td>
             <td>{{ .Points }}</td>
             <td>{{ .AchievementsUnlocked }}/{{ .AchievementsTotal }}</td>
+            <td>{{ .RewardsReceived }}</td>
             <td><a class="button link" href="/manager/employees/{{ .ID }}">Подробнее</a></td>
           </tr>
         {{ else }}
           <tr>
-            <td colspan="5">Сотрудники не найдены.</td>
+            <td colspan="6">Сотрудники не найдены.</td>
           </tr>
         {{ end }}
       </tbody>

@@ -18,6 +18,7 @@
   <div class="card-header">
     <div class="card-title">Добавить достижение</div>
   </div>
+  <div class="notice" style="margin-bottom: 14px;">Баллы за достижения начисляются автоматически и пополняют общий баланс сотрудника.</div>
   <form class="form" method="post" action="/admin/achievements">
     <div class="grid cols-2">
       <div class="form-group">
@@ -25,15 +26,18 @@
         <input name="title" required />
       </div>
       <div class="form-group">
-        <label>Иконка (emoji)</label>
+        <label>Иконка (эмодзи)</label>
         <input name="icon" placeholder="🏅" required />
       </div>
       <div class="form-group">
         <label>Метрика</label>
         <select name="metric" required>
           <option value="total">Всего тренировок</option>
+          <option value="week">Тренировок за неделю</option>
           <option value="month">Тренировок за месяц</option>
           <option value="streak">Подряд</option>
+          <option value="minutes_total">Суммарные минуты</option>
+          <option value="minutes_month">Минут за месяц</option>
         </select>
       </div>
       <div class="form-group">
@@ -74,8 +78,11 @@
               <label>Метрика</label>
               <select name="metric">
                 <option value="total" {{ if eq .Metric "total" }}selected{{ end }}>Всего тренировок</option>
+                <option value="week" {{ if eq .Metric "week" }}selected{{ end }}>Тренировок за неделю</option>
                 <option value="month" {{ if eq .Metric "month" }}selected{{ end }}>Тренировок за месяц</option>
                 <option value="streak" {{ if eq .Metric "streak" }}selected{{ end }}>Подряд</option>
+                <option value="minutes_total" {{ if eq .Metric "minutes_total" }}selected{{ end }}>Суммарные минуты</option>
+                <option value="minutes_month" {{ if eq .Metric "minutes_month" }}selected{{ end }}>Минут за месяц</option>
               </select>
             </div>
             <div class="form-group">

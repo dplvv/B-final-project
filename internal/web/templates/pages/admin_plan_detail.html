@@ -2,7 +2,7 @@
 <div class="page-header">
   <div>
     <div class="page-title">План сотрудника</div>
-    <div class="page-subtitle">{{ .EmployeeName }} · ID {{ .EmployeeID }}</div>
+    <div class="page-subtitle">{{ .EmployeeName }} · Табельный № {{ .EmployeeID }}</div>
   </div>
   <a class="button secondary" href="/admin/plans">Назад</a>
 </div>
@@ -60,6 +60,7 @@
           </div>
         </div>
         <button class="button secondary" type="submit">Приостановить по больничному</button>
+        <div class="muted" style="margin-top: 8px;">Перенос тренировок выполняется на количество календарных дней больничного.</div>
       </form>
     </div>
     <div class="card">
@@ -80,6 +81,7 @@
           <th>Неделя/день</th>
           <th>Тренировка</th>
           <th>Дата</th>
+          <th>Время</th>
           <th>Статус</th>
           <th>Замена</th>
         </tr>
@@ -94,12 +96,14 @@
               {{ if eq .Status "pending" }}
                 <form method="post" action="/admin/plans/{{ $.UserID }}/workouts/{{ .ID }}/reschedule" class="inline-form" style="margin-top: 8px;">
                   <input type="date" name="scheduled_date" value="{{ .ScheduledDateISO }}" required />
-                  <button class="button secondary" type="submit">Сменить дату</button>
+                  <input type="time" name="scheduled_time" value="{{ .ScheduledTime }}" />
+                  <button class="button secondary" type="submit">Сменить дату и время</button>
                 </form>
               {{ else }}
-                <div class="muted" style="margin-top: 6px;">Доступно для статуса «Запланировано»</div>
+                <div class="muted" style="margin-top: 6px;">Доступно для статуса «Не начата»</div>
               {{ end }}
             </td>
+            <td>{{ if .ScheduledTime }}{{ .ScheduledTime }}{{ else }}—{{ end }}</td>
             <td>{{ statusLabel .Status }}</td>
             <td>
               <form method="post" action="/admin/plans/{{ $.UserID }}/workouts/{{ .ID }}/replace" class="inline-form">
@@ -115,7 +119,7 @@
           </tr>
         {{ else }}
           <tr>
-            <td colspan="5">Тренировок нет. Пересоберите план.</td>
+            <td colspan="6">Тренировок нет. Пересоберите план.</td>
           </tr>
         {{ end }}
       </tbody>

@@ -18,6 +18,7 @@
   <div class="card-header">
     <div class="card-title">Добавить поощрение</div>
   </div>
+  <div class="notice" style="margin-bottom: 14px;">Стоимость поощрения задается в тех же баллах, которые сотрудник получает за достижения и активность.</div>
   <form class="form" method="post" action="/admin/rewards">
     <div class="grid cols-2">
       <div class="form-group">
@@ -31,6 +32,11 @@
       <div class="form-group">
         <label>Стоимость (баллы)</label>
         <input type="number" name="points_cost" min="0" required />
+      </div>
+      <div class="form-group">
+        <label>Лимит получений на сотрудника</label>
+        <input type="number" name="max_redemptions_per_user" min="0" value="0" />
+        <div class="muted">0 — без ограничений.</div>
       </div>
       <div class="form-group">
         <label class="toggle">
@@ -67,6 +73,11 @@
             <div class="form-group">
               <label>Стоимость (баллы)</label>
               <input type="number" name="points_cost" min="0" value="{{ .PointsCost }}" />
+            </div>
+            <div class="form-group">
+              <label>Лимит получений на сотрудника</label>
+              <input type="number" name="max_redemptions_per_user" min="0" value="{{ .MaxRedemptionsPerUser }}" />
+              <div class="muted">0 — без ограничений.</div>
             </div>
             <div class="form-group">
               <label class="toggle">

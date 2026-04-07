@@ -5,6 +5,7 @@ create table if not exists users (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   employee_id text not null unique,
+  corporate_email text,
   password_hash text not null,
   role text not null default 'employee',
   department text,
@@ -99,6 +100,7 @@ create table if not exists training_plan_workouts (
   week int not null,
   day int not null,
   scheduled_date date,
+  scheduled_time time,
   intensity int not null default 1,
   status text not null default 'pending',
   skip_reason text
@@ -191,13 +193,22 @@ create table if not exists user_points (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists user_reminder_settings (
+  user_id uuid primary key references users(id) on delete cascade,
+  enabled boolean not null default true,
+  reminder_time time not null default '09:00',
+  weekdays smallint[] not null default '{1,2,3,4,5}',
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists rewards (
   id uuid primary key default uuid_generate_v4(),
   title text not null unique,
   description text not null,
   points_cost int not null,
   category text,
-  active boolean not null default true
+  active boolean not null default true,
+  max_redemptions_per_user int not null default 0
 );
 
 create table if not exists reward_redemptions (
@@ -208,6 +219,17 @@ create table if not exists reward_redemptions (
   redeemed_at timestamptz not null default now(),
   handled_at timestamptz,
   approved_by uuid references users(id) on delete set null
+);
+
+create table if not exists user_point_events (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  source text not null,
+  source_id uuid,
+  points int not null,
+  reason text,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists support_tickets (
@@ -264,6 +286,8 @@ create index if not exists idx_plan_workouts_status on training_plan_workouts(st
 create index if not exists idx_plan_changes_plan on training_plan_changes(plan_id);
 create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
 create index if not exists idx_password_reset_status on password_reset_requests(status);
+create index if not exists idx_user_reminder_settings_user_id on user_reminder_settings(user_id);
+create index if not exists idx_user_point_events_user_created on user_point_events(user_id, created_at desc);
 alter table user_profiles
   add column if not exists notifications_cleared_at timestamptz;
 alter table user_profiles
@@ -299,6 +323,25 @@ alter table programs
   add column if not exists active boolean not null default true;
 alter table programs
   alter column active set default true;
+alter table users
+  add column if not exists corporate_email text;
+alter table training_plan_workouts
+  add column if not exists scheduled_time time;
+alter table rewards
+  add column if not exists max_redemptions_per_user int not null default 0;
+update rewards
+set max_redemptions_per_user = 0
+where max_redemptions_per_user is null;
+alter table rewards
+  drop constraint if exists rewards_max_redemptions_per_user_check;
+alter table rewards
+  add constraint rewards_max_redemptions_per_user_check
+  check (max_redemptions_per_user >= 0);
+alter table user_point_events
+  drop constraint if exists user_point_events_points_non_zero_check;
+alter table user_point_events
+  add constraint user_point_events_points_non_zero_check
+  check (points <> 0);
 update programs
 set active = true
 where active is distinct from true;

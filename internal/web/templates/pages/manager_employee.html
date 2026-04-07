@@ -2,12 +2,12 @@
 <div class="page-header">
   <div>
     <div class="page-title">{{ .Employee.Name }}</div>
-    <div class="page-subtitle">ID‑сотрудника: {{ .Employee.EmployeeID }} · {{ .Employee.Department }}</div>
+    <div class="page-subtitle">Табельный номер: {{ .Employee.EmployeeID }} · {{ .Employee.Department }}</div>
   </div>
   <a class="button secondary" href="/manager">Назад</a>
 </div>
 
-<div class="grid cols-2" style="margin-bottom: 24px;">
+<div class="grid cols-2">
   <div class="card">
     <div class="card-header">
       <div class="card-title">Баллы и статус</div>
@@ -65,7 +65,7 @@
   </table>
 </div>
 
-<div class="card" style="margin-top: 20px;">
+<div class="card">
   <div class="card-header">
     <div class="card-title">Выполненные тренировки</div>
   </div>
@@ -89,6 +89,38 @@
       {{ else }}
         <tr>
           <td colspan="4">Завершённых тренировок пока нет.</td>
+        </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Полученные поощрения</div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Сотрудник</th>
+        <th>Поощрение</th>
+        <th>Стоимость</th>
+        <th>Дата</th>
+        <th>Согласовал</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range .RewardHistory }}
+        <tr>
+          <td>{{ .EmployeeName }}</td>
+          <td>{{ .RewardTitle }}</td>
+          <td>{{ .PointsCost }} баллов</td>
+          <td>{{ .ReceivedAt }}</td>
+          <td>{{ if .ApprovedBy }}{{ .ApprovedBy }}{{ else }}—{{ end }}</td>
+        </tr>
+      {{ else }}
+        <tr>
+          <td colspan="5">Полученных поощрений пока нет.</td>
         </tr>
       {{ end }}
     </tbody>

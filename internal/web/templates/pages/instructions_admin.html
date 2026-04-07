@@ -1,0 +1,90 @@
+{{ define "content" }}
+<div class="guide-shell">
+  <div class="guide-hero">
+    <div>
+      <div class="page-title">Инструкция администратора</div>
+      <div class="page-subtitle">Ежедневный регламент сопровождения системы без лишней бюрократии.</div>
+    </div>
+    <a class="button secondary" href="/admin">Вернуться в администрирование</a>
+  </div>
+
+  <div class="guide-banner">
+    Приоритеты администратора: корректные данные сотрудников, актуальные планы, своевременная обработка обращений.
+  </div>
+
+  <div class="guide-quick">
+    <div class="guide-quick-title">Ежедневный минимум</div>
+    <div class="guide-quick-list">
+      <span class="guide-pill">Проверить обращения и заявки на сброс пароля</span>
+      <span class="guide-pill">Проконтролировать изменения в планах</span>
+      <span class="guide-pill">Проверить актуальность карточек сотрудников</span>
+    </div>
+  </div>
+
+  <div class="guide-grid">
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">1</span><h3>Пользователи и доступ</h3></div>
+      <p class="guide-card-summary">Базовая зона ответственности: учетные записи и корректность персональных данных.</p>
+      <ul class="guide-checklist">
+        <li>Создавайте пользователей только по согласованным основаниям.</li>
+        <li>Проверяйте табельный номер, почту, отдел и должность.</li>
+        <li>Выдавайте временные пароли только по заявкам.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">2</span><h3>Контент тренировок</h3></div>
+      <p class="guide-card-summary">Поддерживайте качество библиотеки упражнений, тренировок и программ.</p>
+      <ul class="guide-checklist">
+        <li>Проверяйте описания, сложность, инвентарь и длительность.</li>
+        <li>Исключайте дубли и устаревшие материалы.</li>
+        <li>Планируйте крупные изменения в предсказуемые периоды.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">3</span><h3>Планы и расписание</h3></div>
+      <p class="guide-card-summary">Ручные корректировки должны быть точными и понятными сотруднику.</p>
+      <ul class="guide-checklist">
+        <li>Переносите тренировки с указанием даты и времени.</li>
+        <li>Используйте больничный сценарий паузы только при подтверждении.</li>
+        <li>После правок проверяйте ближайшую доступную тренировку.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">4</span><h3>Достижения и поощрения</h3></div>
+      <p class="guide-card-summary">Метрики и стоимость должны быть прозрачными и предсказуемыми.</p>
+      <ul class="guide-checklist">
+        <li>Для достижений задавайте понятную метрику, цель и баллы.</li>
+        <li>Для поощрений поддерживайте актуальную стоимость и описание.</li>
+        <li>Проверяйте, что формулировки понятны без технических терминов.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">5</span><h3>Обратная связь</h3></div>
+      <p class="guide-card-summary">Это главный источник для адаптации нагрузки и снижения рисков.</p>
+      <ul class="guide-checklist">
+        <li>Ежедневно просматривайте болевые и критические сигналы.</li>
+        <li>Выявляйте повторяющиеся риски по отделам.</li>
+        <li>При необходимости уведомляйте руководителя и обновляйте план.</li>
+      </ul>
+    </section>
+
+    <section class="card guide-card-lite">
+      <div class="guide-card-head"><span class="guide-step">6</span><h3>Поддержка и эксплуатация</h3></div>
+      <p class="guide-card-summary">Стабильная эксплуатация строится на скорости реакции и аккуратной фиксации статусов.</p>
+      <ul class="guide-checklist">
+        <li>Держите обращения в актуальном статусе до полного закрытия.</li>
+        <li>Разбирайте заявки на сброс доступа без задержек.</li>
+        <li>Еженедельно проводите контроль ролей и прав доступа.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+{{ end }}
+
+{{ define "instructions_admin" }}
+  {{ template "base" . }}
+{{ end }}

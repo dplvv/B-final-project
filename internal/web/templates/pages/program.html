@@ -4,7 +4,7 @@
     <div class="page-title">План реабилитации</div>
     <div class="page-subtitle">Автоматически сформирован по анкете, целям и ограничениям.</div>
   </div>
-  <div style="display:flex; gap:12px; flex-wrap: wrap;">
+  <div class="header-actions">
     {{ if not .SetupIncomplete }}
       {{ if .PlanAdminLocked }}
         <span class="muted">Возобновление доступно только администратору</span>
@@ -59,7 +59,12 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">Ближайшая тренировка по плану</div>
-        {{ if .NextWorkout }}<span class="badge">{{ if .NextWorkout.ScheduledDate }}{{ .NextWorkout.ScheduledDate }}{{ else }}По плану{{ end }}</span>{{ end }}
+        {{ if .NextWorkout }}
+          <span class="badge">
+            {{ if .NextWorkout.ScheduledDate }}{{ .NextWorkout.ScheduledDate }}{{ else }}По плану{{ end }}
+            {{ if .NextWorkout.ScheduledTime }} · {{ .NextWorkout.ScheduledTime }}{{ end }}
+          </span>
+        {{ end }}
       </div>
       {{ if .NextWorkout }}
         <div style="display:grid; gap: 10px;">
@@ -76,7 +81,9 @@
           {{ else if .PlanLaunchBlocked }}
             <div class="notice error">План приостановлен. Запуск недоступен.</div>
           {{ else if not .NextWorkout.StartAllowed }}
-            <div class="notice warning">Тренировку можно выполнить только в назначенную дату.</div>
+            <div class="notice warning">
+              {{ if .NextWorkout.AvailableFrom }}{{ .NextWorkout.AvailableFrom }}{{ else }}Тренировку можно выполнить только в назначенную дату.{{ end }}
+            </div>
           {{ else }}
             {{ if and (eq .NextWorkout.Status "in_progress") .NextWorkout.SessionID }}
               <a class="button primary" href="/sessions/{{ .NextWorkout.SessionID }}">Продолжить</a>
@@ -157,63 +164,33 @@
   </div>
 {{ end }}
 
-<div class="card" style="margin-bottom: 24px;">
-  <div class="card-header">
-    <div class="card-title">Календарь плана</div>
-    <span class="badge">4 недели</span>
-  </div>
-  <div class="calendar-grid">
-    {{ range .PlanCalendar }}
-      <div class="calendar-week">
-        <div class="calendar-week-title">Неделя {{ .Week }}</div>
-        <div class="calendar-days">
-          {{ range .Days }}
-            <div class="calendar-day">
-              <div class="calendar-date">{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}По плану{{ end }}</div>
-              <div class="calendar-name">{{ .Name }}</div>
-              <div class="calendar-meta">
-                <span class="badge">Инт. {{ .Intensity }}</span>
-                <span class="badge">{{ statusLabel .Status }}</span>
-              </div>
-            </div>
-          {{ end }}
-        </div>
-      </div>
-    {{ else }}
-      <div class="empty-state">
-        <div class="empty-title">Календарь пока пуст</div>
-        <div class="muted">Пересоберите план или заполните анкету.</div>
-      </div>
-    {{ end }}
-  </div>
-</div>
-
 <div class="card">
   <div class="card-header">
-    <div class="card-title">Календарь тренировок</div>
+    <div class="card-title">Расписание тренировок</div>
     <span class="badge">4 недели</span>
   </div>
-  <table class="table">
+  <table class="table clean schedule-table">
     <thead>
       <tr>
-        <th>Неделя/день</th>
-        <th>Дата</th>
+        <th>Период</th>
+        <th>Время</th>
         <th>Тренировка</th>
-        <th>Интенсивность</th>
         <th>Статус</th>
-        <th>Действия</th>
+        <th>Действие</th>
       </tr>
     </thead>
     <tbody>
       {{ range .PlanWorkouts }}
         <tr>
-          <td>Неделя {{ .Week }}, день {{ .Day }}</td>
-          <td>{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}—{{ end }}</td>
           <td>
-            <div style="font-weight: 600;"><a href="/workouts/{{ .WorkoutID }}">{{ .Name }}</a></div>
-            <div class="muted">{{ .Duration }} мин · {{ .Difficulty }}{{ if .Category }} · {{ .Category }}{{ end }}</div>
+            <div class="schedule-title">Неделя {{ .Week }}, день {{ .Day }}</div>
+            <div class="muted">{{ if .ScheduledDate }}{{ .ScheduledDate }}{{ else }}Дата не задана{{ end }}</div>
           </td>
-          <td><span class="badge">Уровень {{ .Intensity }}</span></td>
+          <td>{{ if .ScheduledTime }}{{ .ScheduledTime }}{{ else }}—{{ end }}</td>
+          <td>
+            <div class="schedule-title"><a href="/workouts/{{ .WorkoutID }}">{{ .Name }}</a></div>
+            <div class="muted">{{ .Duration }} мин · {{ .Difficulty }}{{ if .Category }} · {{ .Category }}{{ end }} · Интенсивность {{ .Intensity }}</div>
+          </td>
           <td>
             {{ if eq .Status "completed" }}
               <span class="badge success">Выполнено</span>
@@ -229,6 +206,7 @@
             {{ end }}
           </td>
           <td>
+            <div class="row-actions">
             {{ if not $.DoctorApproval }}
               <span class="muted">Нет допуска врача</span>
             {{ else if $.PlanLaunchBlocked }}
@@ -242,27 +220,31 @@
             {{ else }}
               {{ if or (eq .Status "pending") (eq .Status "in_progress") }}
                 {{ if not .StartAllowed }}
-                  <span class="muted">Доступно только в назначенную дату</span>
+                  <span class="muted">{{ if .AvailableFrom }}{{ .AvailableFrom }}{{ else }}Доступно только в назначенную дату{{ end }}</span>
                 {{ else }}
-                  <div class="inline-form">
+                  <div class="row-actions-inline">
                     <form method="post" action="/plan-workouts/{{ .ID }}/start">
-                      <button class="button primary" type="submit">Старт</button>
+                      <button class="button primary sm" type="submit">Старт</button>
                     </form>
-                    <form method="post" action="/plan-workouts/{{ .ID }}/skip" class="inline-form">
-                      <input type="text" name="skip_reason" placeholder="Причина" />
-                      <button class="button secondary" type="submit">Пропустить</button>
-                    </form>
+                    <details class="skip-disclosure">
+                      <summary>Пропустить</summary>
+                      <form method="post" action="/plan-workouts/{{ .ID }}/skip" class="skip-form">
+                        <input type="text" name="skip_reason" placeholder="Короткая причина (необязательно)" />
+                        <button class="button secondary sm" type="submit">Подтвердить</button>
+                      </form>
+                    </details>
                   </div>
                 {{ end }}
               {{ else }}
                 <span class="muted">Недоступно</span>
               {{ end }}
             {{ end }}
+            </div>
           </td>
         </tr>
       {{ else }}
         <tr>
-          <td colspan="6">Пока нет тренировок. Пересоберите план.</td>
+          <td colspan="5">Пока нет тренировок. Пересоберите план.</td>
         </tr>
       {{ end }}
     </tbody>
@@ -270,21 +252,21 @@
 </div>
 
 <div class="section-title" style="margin-top: 28px;">Программы</div>
-<div class="grid cols-3">
+<div class="grid cols-3 card-grid-equal">
   {{ range .Programs }}
-    <div class="card program-card">
+    <div class="card program-card card-stretch">
       <div class="card-header">
         <div>
           <div class="card-title">{{ .Name }}</div>
           <div class="muted">{{ .Description }}</div>
         </div>
       </div>
-      <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+      <div style="display:flex; gap: 10px; flex-wrap: wrap;">
         <span class="badge">{{ .Workouts }} тренировок</span>
         <span class="badge">{{ .Duration }} мин</span>
         {{ if .MuscleGroups }}<span class="badge">Группы: {{ join .MuscleGroups ", " }}</span>{{ end }}
       </div>
-      <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+      <div class="card-actions">
         <a class="button secondary" href="/programs/{{ .ID }}">Подробнее</a>
         {{ if $.PlanLaunchBlocked }}
           <span class="muted">План на паузе</span>

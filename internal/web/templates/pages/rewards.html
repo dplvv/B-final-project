@@ -2,9 +2,12 @@
 <div class="page-header">
   <div>
     <div class="page-title">Поощрения за баллы</div>
-    <div class="page-subtitle">Обменивайте баллы мотивации на корпоративные бонусы.</div>
+    <div class="page-subtitle">Обменивайте накопленные баллы на корпоративные бонусы.</div>
   </div>
-  <div class="badge">Баланс: {{ .Points }} баллов</div>
+  <div class="header-actions column">
+    <div class="badge">Баланс: {{ .Points }} баллов</div>
+    <div class="muted">{{ .PointsUsageHint }}</div>
+  </div>
 </div>
 
 {{ if .Error }}
@@ -14,37 +17,54 @@
   <div class="notice" style="margin-bottom: 16px;">{{ .Success }}</div>
 {{ end }}
 
-<div class="grid cols-3">
+<div class="grid cols-3 card-grid-equal">
   {{ range .Rewards }}
-    <div class="card program-card">
+    <div class="card program-card card-stretch">
       <div class="card-header">
         <div>
           <div class="card-title">{{ .Title }}</div>
           <div class="muted">{{ .Description }}</div>
         </div>
       </div>
-      <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+      <div class="card-meta" style="display:flex; gap: 10px; flex-wrap: wrap;">
         <span class="badge">{{ .PointsCost }} баллов</span>
         {{ if .Category }}<span class="badge">{{ .Category }}</span>{{ end }}
-      </div>
-      {{ $status := index $.RedemptionStatus .ID }}
-      {{ if $status }}
-        <span class="badge warning">{{ statusLabel $status }}</span>
-      {{ else }}
-        {{ if ge $.Points .PointsCost }}
-          <form method="post" action="/rewards/{{ .ID }}/redeem">
-            <button class="button primary" type="submit">Получить</button>
-          </form>
-        {{ else }}
-          <span class="badge">Недостаточно баллов</span>
+        {{ if gt .MaxRedemptionsPerUser 0 }}
+          <span class="badge">Лимит: {{ .MaxRedemptionsPerUser }}</span>
+          <span class="badge">Получено: {{ .ApprovedCount }} из {{ .MaxRedemptionsPerUser }}</span>
+        {{ else if gt .ApprovedCount 0 }}
+          <span class="badge">Получено: {{ .ApprovedCount }}</span>
         {{ end }}
-      {{ end }}
+      </div>
+
+      <div class="card-actions" style="margin-top: 14px;">
+        {{ if .HasPending }}
+          <span class="badge warning">Ожидает подтверждения</span>
+        {{ else if .LimitReached }}
+          <span class="badge danger">Лимит получений исчерпан</span>
+        {{ else }}
+          {{ if eq .LatestStatus "approved" }}
+            <span class="badge success">Последняя заявка одобрена</span>
+          {{ else if eq .LatestStatus "rejected" }}
+            <span class="badge warning">Последняя заявка отклонена</span>
+          {{ end }}
+          {{ if ge $.Points .PointsCost }}
+            <form method="post" action="/rewards/{{ .ID }}/redeem">
+              <button class="button primary" type="submit">
+                {{ if or (eq .LatestStatus "approved") (eq .LatestStatus "rejected") }}Отправить заявку снова{{ else }}Получить{{ end }}
+              </button>
+            </form>
+          {{ else }}
+            <span class="badge">Недостаточно баллов</span>
+          {{ end }}
+        {{ end }}
+      </div>
     </div>
   {{ else }}
     <div class="card">
       <div class="empty-state">
-        <div class="empty-title">Поощрения не добавлены</div>
-        <div class="muted">Администратор может добавить награды позже.</div>
+        <div class="empty-title">Поощрения не найдены</div>
+        <div class="muted">Каталог будет доступен после публикации поощрений администратором.</div>
       </div>
     </div>
   {{ end }}
