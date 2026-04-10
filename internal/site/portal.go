@@ -932,7 +932,7 @@ func (s *Site) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 	_ = db.EnsureUserDefaults(s.DB, userID)
 	if !birthDate.IsZero() {
 		age := ageFromBirthDate(birthDate, time.Now())
-		_, _ = s.DB.Exec(
+		if _, err := s.DB.Exec(
 			`update user_profiles
        set birth_date = $1,
            age = $2,
@@ -941,7 +941,10 @@ func (s *Site) adminUserCreate(w http.ResponseWriter, r *http.Request) {
 			birthDate,
 			age,
 			userID,
-		)
+		); err != nil {
+			http.Redirect(w, r, "/admin?error=Не%20удалось%20сохранить%20дату%20рождения", http.StatusSeeOther)
+			return
+		}
 	}
 	http.Redirect(w, r, "/admin?success=Пользователь%20создан", http.StatusSeeOther)
 }
@@ -1008,7 +1011,7 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		age := ageFromBirthDate(birthDate, time.Now())
-		_, _ = s.DB.Exec(
+		if _, err := s.DB.Exec(
 			`insert into user_profiles (user_id, birth_date, age, updated_at)
        values ($1, $2, $3, now())
        on conflict (user_id)
@@ -1018,7 +1021,10 @@ func (s *Site) adminUserUpdate(w http.ResponseWriter, r *http.Request) {
 			userID,
 			birthDate,
 			age,
-		)
+		); err != nil {
+			http.Redirect(w, r, "/admin?error=Не%20удалось%20обновить%20дату%20рождения", http.StatusSeeOther)
+			return
+		}
 	}
 
 	http.Redirect(w, r, "/admin?success=Данные%20обновлены", http.StatusSeeOther)

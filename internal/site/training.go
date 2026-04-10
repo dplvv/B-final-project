@@ -187,16 +187,26 @@ func (s *Site) questionnaireSubmit(w http.ResponseWriter, r *http.Request) {
 	if q.Goal != "" {
 		goals = append(goals, q.Goal)
 	}
-	_, _ = s.DB.Exec(
-		`update user_profiles
-     set fitness_level = $1,
-         goals = $2,
-         updated_at = now()
-     where user_id = $3`,
-		q.FitnessLevel,
-		goals,
+	goalsCSV := strings.Join(goals, ",")
+	if _, err := s.DB.Exec(
+		`insert into user_profiles (user_id, fitness_level, goals, updated_at)
+     values (
+       $1,
+       nullif($2, ''),
+       case when trim($3) = '' then '{}'::text[] else string_to_array($3, ',') end,
+       now()
+     )
+     on conflict (user_id)
+     do update set fitness_level = excluded.fitness_level,
+                   goals = excluded.goals,
+                   updated_at = now()`,
 		user.ID,
-	)
+		q.FitnessLevel,
+		goalsCSV,
+	); err != nil {
+		http.Error(w, "Ошибка сохранения параметров профиля", http.StatusInternalServerError)
+		return
+	}
 	_, _ = s.DB.Exec(
 		`update training_plans
      set goal = $1, updated_at = now()

@@ -1284,12 +1284,20 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
 	_ = db.EnsureUserDefaults(s.DB, user.ID)
 	s.updateAchievements(user.ID)
 	view := profileView{User: *user}
+	var goalsCSV string
 
 	_ = s.DB.QueryRow(
-		`select coalesce(extract(year from age(current_date, birth_date))::int, 0), coalesce(fitness_level, ''), goals
+		`select coalesce(extract(year from age(current_date, birth_date))::int, age, 0),
+            coalesce(
+              nullif(trim(fitness_level), ''),
+              nullif(trim(answers ->> 'fitness_level'), ''),
+              ''
+            ),
+            coalesce(array_to_string(goals, ','), '')
      from user_profiles where user_id = $1`,
 		user.ID,
-	).Scan(&view.Age, &view.FitnessLevel, &view.Goals)
+	).Scan(&view.Age, &view.FitnessLevel, &goalsCSV)
+	view.Goals = parseCSV(goalsCSV)
 	_ = s.DB.QueryRow(
 		`select coalesce(points_balance, 0) from user_points where user_id = $1`,
 		user.ID,
@@ -1302,6 +1310,12 @@ func (s *Site) profile(w http.ResponseWriter, r *http.Request) {
 	q, _ := s.loadQuestionnaire(user.ID)
 	if q.SessionMinutes == 0 {
 		q.SessionMinutes = sessionMinutesForLevel(resolveLevel(q.FitnessLevel))
+	}
+	if view.FitnessLevel == "" {
+		view.FitnessLevel = strings.TrimSpace(q.FitnessLevel)
+	}
+	if len(view.Goals) == 0 && strings.TrimSpace(q.Goal) != "" {
+		view.Goals = []string{strings.TrimSpace(q.Goal)}
 	}
 	data["Questionnaire"] = q
 	data["QuestionnaireComplete"] = !s.needsQuestionnaire(user.ID)

@@ -298,6 +298,12 @@ alter table user_profiles
   add column if not exists doctor_approval boolean;
 alter table user_profiles
   add column if not exists restrictions text[];
+alter table user_profiles
+  add column if not exists age int;
+alter table user_profiles
+  add column if not exists fitness_level text;
+alter table user_profiles
+  add column if not exists goals text[];
 update user_profiles
 set answers = '{}'::jsonb
 where answers is null;
@@ -307,6 +313,17 @@ where doctor_approval is null;
 update user_profiles
 set restrictions = '{}'::text[]
 where restrictions is null;
+update user_profiles
+set goals = '{}'::text[]
+where goals is null;
+update user_profiles
+set fitness_level = nullif(trim(answers ->> 'fitness_level'), '')
+where coalesce(trim(fitness_level), '') = ''
+  and coalesce(trim(answers ->> 'fitness_level'), '') <> '';
+update user_profiles
+set age = extract(year from age(current_date, birth_date))::int
+where age is null
+  and birth_date is not null;
 alter table user_profiles
   alter column answers set default '{}'::jsonb;
 alter table user_profiles
@@ -319,6 +336,10 @@ alter table user_profiles
   alter column restrictions set default '{}'::text[];
 alter table user_profiles
   alter column restrictions set not null;
+alter table user_profiles
+  alter column goals set default '{}'::text[];
+alter table user_profiles
+  alter column goals set not null;
 alter table programs
   add column if not exists active boolean not null default true;
 alter table programs
