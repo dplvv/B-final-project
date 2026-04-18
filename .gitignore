@@ -1,2 +1,24 @@
+# OS and IDE
 .DS_Store
 .idea/
+.ai/
+.vscode/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Runtime/user data
+uploads/*
+!uploads/.gitkeep
+
+# Logs and temp files
+*.log
+*.pid
+tmp/
+
+# Go build artifacts
+*.out
+coverage.out
+bin/
